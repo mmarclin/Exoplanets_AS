@@ -1,5 +1,6 @@
 ### KOI_table
 
+library(gitcreds)
 library(dplyr)
 
 # Data importation
