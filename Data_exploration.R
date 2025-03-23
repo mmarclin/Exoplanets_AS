@@ -7,8 +7,9 @@ library(dplyr)
 KOI_table = read.csv("KOI_table_2025.03.23_01.50.59.csv",comment.char = "#",header = TRUE, stringsAsFactors = FALSE)
 
 # Data exploration
-head(KOI_table)
+head(KOI_table)s
 names(KOI_table)
+str(KOI_table)
 dim(KOI_table)
 class(KOI_table)
 
