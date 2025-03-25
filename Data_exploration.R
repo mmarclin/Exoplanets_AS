@@ -41,6 +41,7 @@ unique(KOI_table$koi_tce_delivname)
 column_rm2 = c("koi_teq_err1","kepoi_name","kepler_name","koi_pdisposition")
 
 # Data exploration
+unique(KOI_table$koi_disposition)
 summary(KOI_table)
 pairs(KOI_table)
 attach(KOI_table)
