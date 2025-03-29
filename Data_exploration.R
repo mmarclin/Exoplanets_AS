@@ -38,13 +38,15 @@ head(KOI_table)
 unique(KOI_table$koi_teq_err1)
 unique(KOI_table$koi_teq_err2) #may be useful : to check
 unique(KOI_table$koi_tce_delivname)
-column_rm2 = c("koi_teq_err1","kepoi_name","kepler_name","koi_pdisposition")
+column_rm2 = c("koi_teq_err1","koi_teq_err2")
 
 # Data exploration
 unique(KOI_table$koi_disposition)
+names(KOI_table)
 summary(KOI_table)
 pairs(KOI_table)
 attach(KOI_table)
+
 
 
 
