@@ -1,4 +1,4 @@
-### KOI_table
+### KOI_tabl
 
 library(gitcreds)
 library(dplyr)
@@ -46,11 +46,13 @@ summary(KOI_table)
 pairs(KOI_table)
 attach(KOI_table)
 
+View(KOI_table)
 
+summary(KOI_table)
 
-
-
+table(KOI_table$koi_disposition)
 
 detach(KOI_table)
 
-
+library(ggplot2)
+library(dplyr)
