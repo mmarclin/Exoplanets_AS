@@ -19,7 +19,7 @@ library(corrplot) # correlation heatmap
 library(ggplot2) # box plots
 library(rgl) # 3D plot
 
-
+library(class) # KNN
 
 ###
 ### Import the data 
@@ -163,7 +163,19 @@ detach(KOI_table)
 ### Prediction
 ###
 
+### K fold cross validation
 
+### LDA
+
+KOI_table_clean.knn <- knn(train = , cl = koi_disposition, k = 3, prob = T)
+
+
+### KNN
+
+
+
+
+### SVM
 
 
 detach(KOI_table_clean)
