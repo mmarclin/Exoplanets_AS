@@ -15,6 +15,7 @@ library(corrplot) # correlation heatmap
 library(ggplot2) # box plots
 library(rgl) # 3D plot
 
+library(caret) # split data
 library(class) # KNN
 
 ###
@@ -152,11 +153,35 @@ ggparcoord(df_pca_5, columns = 1:5, groupColumn = "label", alphaLines = 0.5)
 ### Prediction
 ###
 
-### K fold cross validation
+### Cross validation
+set.seed(123)  # For reproducibility
+train_index <- createDataPartition(koi_disposition, p = 0.8, list = FALSE)  # 80% training
+
+train_set <- KOI_table_clean[train_index, ]
+val_set <- KOI_table_clean[-train_index, ]
+
+head(train_set)
+dim(train_set)
+dim(val_set)
 
 ### LDA
 
 KOI_table_clean.knn <- knn(train = , cl = koi_disposition, k = 3, prob = T)
+
+
+### Logistic regression
+
+glm.fit <- glm(koi_disposition~., data = train_set, family=binomial)
+summary(glm.fit)
+
+# Prediction on validation set
+val_probs <- predict(glm.fit, newdata = val_set, type = "response")
+# Class prediction
+val_pred <- ifelse(val_probs > 0.5, 1, 0)
+# Confusion matrix
+table(Predicted = val_pred, Actual = val_set$koi_disposition)
+# Accuracy
+mean(val_pred == val_set$koi_disposition)
 
 
 ### KNN
