@@ -122,7 +122,18 @@ all_outliers <- unique(unlist(non_empty_lists))
 all_outliers
 dim(all_outliers)
 # We lose too much information by removing the outliers
-# We can do transformations
+# We can do transformations 
+
+# We can't use log or box-cox transformation because we also have negative values
+# However, we can use Yeo-Johnson transformation
+library(e1071)
+not_skewness_features <- list()
+for (feature in KOI_table_clean) {
+  hist(feature)
+}
+
+for 
+skewness(df$feature1)
 
 
 # Per class
