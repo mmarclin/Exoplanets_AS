@@ -1,12 +1,8 @@
-<<<<<<< HEAD
-### KOI_tabl
-=======
 ###
 ### KOI_table
 ### Dataset from the NASA : 
 ### https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=cumulative
 ###
->>>>>>> 4781138c530b35471f2e8dc19148aa1175cd327e
 
 ###
 ### Import libraries
@@ -204,7 +200,6 @@ mean(val_pred == val_set$koi_disposition)
 
 
 detach(KOI_table_clean)
->>>>>>> 4781138c530b35471f2e8dc19148aa1175cd327e
 
 library(ggplot2)
 library(dplyr)
