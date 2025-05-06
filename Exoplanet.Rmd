@@ -1,0 +1,84 @@
+---
+title: "Exoplanet"
+output: html_document
+---
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(error = TRUE)
+```
+
+### KOI_table
+Dataset from the NASA : 
+source : https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=cumulative
+
+```{r}
+KOI_table = read.csv("KOI_table_2025.03.23_01.50.59.csv",comment.char = "#",header = TRUE, stringsAsFactors = FALSE)
+```
+
+### Librairies
+
+```{r}
+library(gitcreds) # git
+library(dplyr) # selection
+library(GGally) # pair plots
+library(corrplot) # correlation heatmap
+library(ggplot2) # box plots
+library(rgl) # 3D plot
+```
+
+### Data exploration 
+First of all, we begin by looking into our dataset (features, dimension, type)
+
+```{r}
+head(KOI_table)
+```
+```{r}
+names(KOI_table)
+```
+```{r}
+str(KOI_table)
+```
+```{r}
+dim(KOI_table)
+class(KOI_table)
+```
+
+We have to remove the unnecessary columns which are : 
+- object id
+- object name
+- satellite name
+- pdisposition (Kepler) (less information than disposition)
+- koi_depth_err1: Transit Depth Upper Unc. [ppm] (no information : NA)
+- koi_depth_err2: Transit Depth Lower Unc. [ppm] (no information : NA)
+- koi_tce_delivname: TCE Delivery (it's just the delivery type)
+
+We choose to work on the class (confirmed, false positive) instead of the score, so we remove it
+
+We also remove the still unconfirmed candidate exoplanets because we only work with the ones whose analyse is finished
+```{r}
+column_rm = c("kepid","kepoi_name","kepler_name","koi_pdisposition",
+              "koi_score"
+              "koi_teq_err1","koi_teq_err2","koi_tce_delivname")
+KOI_table <- KOI_table %>% select(-all_of(column_rm))
+KOI_table <- KOI_table %>% filter(koi_disposition != "CANDIDATE")
+```
+We now have : 
+```{r}
+head(KOI_table)
+dim(KOI_table)
+names(KOI_table)
+```
+We encode binarly the class : 0 if false positive, 1 if confirmed exoplanet
+```{r}
+KOI_table$koi_disposition <- ifelse(KOI_table$koi_disposition == "CONFIRMED", 1, 0)
+```
+
+### Data cleaning
+
+Let's work on missing datapoint
+```{r}
+colSums(is.na(KOI_table))
+```
+
+
+

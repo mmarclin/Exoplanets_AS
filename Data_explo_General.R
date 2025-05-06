@@ -66,7 +66,7 @@ summary(pca)
 
 # PCA scatter plot with transparency
 df_pca <- data.frame(pca$x[, 1:2], label = as.factor(KOI_table_clean$koi_disposition))
-ggplot(df_pca, aes(x = PC1, y = PC2, color = label, alpha = 0.5)) +
+ggplot(df_pca, aes(x = PC1, y = PC2, color = label, alpha = 0.1)) +
   geom_point() +
   theme_minimal() +
   ggtitle("PCA: First Two Principal Components")
@@ -82,7 +82,7 @@ ggplot(df_pca_exo, aes(x = PC1, y = PC2)) +
 
 # 3D PCA plot with transparency
 df_pca_3d <- data.frame(pca$x[, 1:3], label = KOI_table_clean$koi_disposition)
-plot3d(df_pca_3d$PC1, df_pca_3d$PC2, df_pca_3d$PC3, 
+  plot3d(df_pca_3d$PC1, df_pca_3d$PC2, df_pca_3d$PC3, 
        col = ifelse(df_pca_3d$label == 1, "blue", "red"),
        alpha = 0.5, size = 5, 
        xlab = "PC1", ylab = "PC2", zlab = "PC3", 
