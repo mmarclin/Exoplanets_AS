@@ -84,11 +84,63 @@ dim(KOI_table)
 ### Data analysing 
 ###
 
-unique(KOI_table$koi_disposition)
-names(KOI_table)
-summary(KOI_table)
+unique(KOI_table_clean$koi_disposition)
+names(KOI_table_clean)
+summary(KOI_table_clean)
 str(KOI_table)
 attach(KOI_table_clean)
+list_features = setdiff(colnames(KOI_table_clean),c("koi_disposition"))
+
+### Outliers
+
+outlier_indices_list <- list()  # Initialize empty list to store indices
+
+for (feature_name in names(KOI_table_clean)) {
+  feature <- KOI_table_clean[[feature_name]]  # Extract column
+  
+  if (is.numeric(feature)) {
+    # Get boxplot stats
+    stats <- boxplot.stats(feature)
+    
+    # Identify indices of outliers
+    outlier_indices <- which(feature %in% stats$out)
+    
+    # Store in list with feature name as key
+    outlier_indices_list[[feature_name]] <- outlier_indices
+    
+    # Plot boxplot with labels
+    boxplot(feature,
+            main = paste("Boxplot of", feature_name),
+            xlab = feature_name)
+  }
+}
+
+# Filter out empty entries (features with no outliers)
+non_empty_lists <- Filter(length, outlier_indices_list)
+# Get the union of all outlier indices
+all_outliers <- unique(unlist(non_empty_lists))
+all_outliers
+dim(all_outliers)
+# We lose too much information by removing the outliers
+# We can do transformations 
+
+# We can't use log or box-cox transformation because we also have negative values
+# However, we can use Yeo-Johnson transformation
+library(e1071)
+not_skewness_features <- list()
+for (feature in KOI_table_clean) {
+  hist(feature)
+}
+
+for 
+skewness(df$feature1)
+
+
+# Per class
+for (feature in KOI_table_clean){
+  boxplot(feature ~ koi_disposition, data = KOI_table_clean, main = "Boxplot by Class")
+}
+dim(koi_disposition)
 
 
 ### Pairplot for some features
@@ -96,6 +148,19 @@ pairs(KOI_table)
 selected_features <- KOI_table_clean[, c("koi_fpflag_nt", "koi_period", "koi_duration", "koi_teq", "koi_steff", "koi_disposition")]
 ggpairs(selected_features, aes(color = "koi_disposition"))
 pairs(selected_features, aes(color="koi_disposition"))
+
+
+### Density 
+for (var in list_features) {
+  print(
+    ggplot(KOI_table_clean, aes(x = !!sym(var), fill = factor(koi_disposition))) +
+      geom_density(alpha = 0.5) +
+      scale_fill_manual(values = c("steelblue4", "indianred", "darkgreen")) +
+      theme_minimal() +
+      ggtitle(paste("Density Plot of", var))
+  )
+}
+
 
 # Compute correlation matrix
 cor_matrix <- cor(KOI_table_clean[, -which(names(KOI_table_clean) == "koi_disposition")], use = "complete.obs")
