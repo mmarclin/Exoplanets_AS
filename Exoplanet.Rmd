@@ -9,12 +9,12 @@ knitr::opts_chunk$set(error = TRUE)
 
 
 
-### KOI_table
+### KOI_table_full
 Dataset from the NASA : 
 source : https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=cumulative
 
 ```{r}
-KOI_table = read.csv("KOI_table_2025.03.23_01.50.59.csv",comment.char = "#",header = TRUE, stringsAsFactors = FALSE)
+KOI_table_full = read.csv("KOI_table_2025.03.23_01.50.59.csv",comment.char = "#",header = TRUE, stringsAsFactors = FALSE)
 ```
 
 
@@ -38,22 +38,22 @@ library(rgl) # 3D plot
 First of all, we begin by looking into our dataset (features, dimension, type)
 
 ```{r}
-head(KOI_table)
+head(KOI_table_full)
 ```
 ```{r}
-names(KOI_table)
+names(KOI_table_full)
 ```
 ```{r}
-str(KOI_table)
-```
-
-```{r}
-summary(KOI_table_clean)
+str(KOI_table_full)
 ```
 
 ```{r}
-dim(KOI_table)
-class(KOI_table)
+summary(KOI_table)
+```
+
+```{r}
+dim(KOI_table_full)
+class(KOI_table_full)
 ```
 
 We have to remove the unnecessary columns which are : 
@@ -72,20 +72,20 @@ We also remove the still unconfirmed candidate exoplanets because we only work w
 column_rm = c("kepid","kepoi_name","kepler_name","koi_pdisposition",
               "koi_score",
               "koi_teq_err1","koi_teq_err2","koi_tce_delivname")
-KOI_table <- KOI_table %>% select(-all_of(column_rm))
-KOI_table <- KOI_table %>% filter(koi_disposition != "CANDIDATE")
+KOI_table_full <- KOI_table_full %>% select(-all_of(column_rm))
+KOI_table_full <- KOI_table_full %>% filter(koi_disposition != "CANDIDATE")
 ```
 We now have : 
 ```{r}
-head(KOI_table)
-dim(KOI_table)
-names(KOI_table)
+head(KOI_table_full)
+dim(KOI_table_full)
+names(KOI_table_full)
 ```
 
 We encode binarly the class : 0 if false positive, 1 if confirmed exoplanet
 ```{r}
-KOI_table$koi_disposition <- ifelse(KOI_table$koi_disposition == "CONFIRMED", 1, 0)
-unique(KOI_table_clean$koi_disposition)
+KOI_table_full$koi_disposition <- ifelse(KOI_table_full$koi_disposition == "CONFIRMED", 1, 0)
+unique(KOI_table$koi_disposition)
 ```
 
 ### Data cleaning
@@ -94,7 +94,7 @@ unique(KOI_table_clean$koi_disposition)
 
 Let's work on missing datapoint
 ```{r}
-colSums(is.na(KOI_table))
+colSums(is.na(KOI_table_full))
 ```
 We have different options : 
 - remove NA
@@ -102,9 +102,9 @@ We have different options :
 
 If we remove NA, we have : We lose 653 observations in total
 ```{r}
-KOI_table_clean = na.omit(KOI_table)
-dim(KOI_table_clean)
+KOI_table = na.omit(KOI_table_full)
 dim(KOI_table)
+dim(KOI_table_full)
 ```
 
 
@@ -112,7 +112,7 @@ dim(KOI_table)
 ### Data analyse
 
 ```{r}
-attach(KOI_table_clean)
+attach(KOI_table)
 ```
 
 #### Class distribution
@@ -123,7 +123,7 @@ Class imbalance can biased the model towards the majority class
 - it can draw boundaries too close to the minority class (Log Reg, SVM)
 ```{r}
 # Create a frequency table
-table_koi <- table(KOI_table_clean[["koi_disposition"]])
+table_koi <- table(KOI_table[["koi_disposition"]])
 table_koi
 # Convert to proportions
 prop_koi <- prop.table(table_koi)
@@ -141,8 +141,8 @@ In our case, we can see imbalance between classes that we can handle with for ex
 A revoir ! 
 ```{r}
 # Per class
-for (feature in KOI_table_clean){
-  boxplot(feature ~ koi_disposition, data = KOI_table_clean, main = "Boxplot by Class")
+for (feature in KOI_table){
+  boxplot(feature ~ koi_disposition, data = KOI_table, main = "Boxplot by Class")
 }
 dim(koi_disposition)
 ```
@@ -150,17 +150,32 @@ dim(koi_disposition)
 A revoir !
 ```{r}
 ### Pairplot for some features
-#pairs(KOI_table)
-selected_features <- KOI_table_clean[, c("koi_fpflag_nt", "koi_period", "koi_duration", "koi_teq", "koi_steff", "koi_disposition")]
+#pairs(KOI_table_full)
+selected_features <- KOI_table[, c("koi_fpflag_nt", "koi_period", "koi_duration", "koi_teq", "koi_steff", "koi_disposition")]
 ggpairs(selected_features, aes(color = "koi_disposition"))
 pairs(selected_features, aes(color="koi_disposition"))
+```
+
+#### Features distributions
+
+##### Normality test
+
+##### Standardized data
+
+Boxplots 
+```{r}
+KOI_table_scaled <- KOI_table
+KOI_table_scaled[, -which(names(KOI_table_scaled) == "koi_disposition")] <- scale(KOI_table_scaled[, -which(names(KOI_table_scaled) == "koi_disposition")])
+boxplot(KOI_table_scaled, las = 2, main = "Standardized Features Boxplot")
+
+KOI_table_scaled
 ```
 
 #### Correlation
 
 Correlation between features
 ```{r}
-cor_matrix <- cor(KOI_table_clean[, -which(names(KOI_table_clean) == "koi_disposition")], use = "complete.obs")
+cor_matrix <- cor(KOI_table[, -which(names(KOI_table) == "koi_disposition")], use = "complete.obs")
 corrplot(cor_matrix, method = "color", tl.cex = 0.6, tl.srt = 45)
 ```
 
@@ -175,7 +190,7 @@ Correlation between features and the class :
 
 We have a lot of features, PCA will help to reduce the dimension and interpret the features
 ```{r}
-pca <- prcomp(KOI_table_clean[, -which(names(KOI_table_clean) == "koi_disposition")], scale. = TRUE)
+pca <- prcomp(KOI_table[, -which(names(KOI_table) == "koi_disposition")], scale. = TRUE)
 summary(pca)
 ```
 
@@ -189,6 +204,19 @@ plot(cumvar,
      type = "b", pch = 19, col = "blue",
      main = "Cumulative Variance Explained by PCs")
 abline(h = 0.9, col = "red", lty = 2)  # optional 90% guide
+```
+
+```{r}
+# PCA loadings histogram
+loadings <- as.data.frame(pca$rotation)  # Loadings matrix
+loadings$Feature <- rownames(loadings)   # Feature names
+loadings_long <- loadings %>% pivot_longer(cols = starts_with("PC"), names_to = "Principal_Component", values_to = "Loading")
+
+ggplot(loadings_long %>% filter(Principal_Component == "PC1"), aes(x = reorder(Feature, Loading), y = Loading)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +  # Flip axes for readability
+  theme_minimal() +
+  labs(title = "PCA Loadings for PC1", x = "Features", y = "Loading Value")
 ```
 
 First 2 principal components : 
@@ -220,14 +248,30 @@ df_pca_5 <- data.frame(pca$x[, 1:5], label = koi_disposition)
 ggparcoord(df_pca_5, columns = 1:5, groupColumn = "label", alphaLines = 0.5)
 ```
 
+Entre parenthèse
+KOI_table_PCA = pca$x
+On ne garde que les p premières composantes : 
+p = 20 
+Pour ..
+cumsum(eigenvalues)[20]/tail(cumsum(eigenvalues),1)
+% de la variance totale
+KOI_table_PCA = pca$x[,1:20]
+dim(KOI_table_PCA)
+
 #### Outliers
+
+```{r}
+library(mice)        # Handling missing data
+library(VIM)         # Visualizing missing data
+```
+
 A revoir ! 
 
 ```{r}
 outlier_indices_list <- list()  # Initialize empty list to store indices
 
-for (feature_name in names(KOI_table_clean)) {
-  feature <- KOI_table_clean[[feature_name]]  # Extract column
+for (feature_name in names(KOI_table)) {
+  feature <- KOI_table[[feature_name]]  # Extract column
   
   if (is.numeric(feature)) {
     # Get boxplot stats
@@ -264,17 +308,21 @@ dim(all_outliers)
 # However, we can use Yeo-Johnson transformation
 library(e1071)
 not_skewness_features <- list()
-for (feature in KOI_table_clean) {
+for (feature in KOI_table) {
   hist(feature)
 }
 
-for 
-skewness(df$feature1)
+#for 
+#skewness(df$feature1)
 ```
 
 
 
 ### Classification 
+
+```{r}
+library(caret) # split data
+```
 
 We divide the dataset into a : 
 - training set
@@ -283,8 +331,8 @@ We divide the dataset into a :
 set.seed(123)  # For reproducibility
 train_index <- createDataPartition(koi_disposition, p = 0.8, list = FALSE)  # 80% training
 
-train_set <- KOI_table_clean[train_index, ]
-val_set <- KOI_table_clean[-train_index, ]
+train_set <- KOI_table[train_index, ]
+val_set <- KOI_table[-train_index, ]
 ```
 
 ```{r}
@@ -298,9 +346,13 @@ dim(val_set)
 
 #### KNN
 
+```{r}
+library(class) # KNN
+```
+
 Let's try K-Nearest Neighbor method : 
 ```{r}
-#KOI_table_clean.knn <- knn(train = , cl = koi_disposition, k = 3, prob = T)
+#KOI_table.knn <- knn(train = , cl = koi_disposition, k = 3, prob = T)
 ```
 
 
@@ -330,7 +382,7 @@ table(Predicted = val_pred, Actual = val_set$koi_disposition)
 mean(val_pred == val_set$koi_disposition)
 ```
 
-#### Conclusion
+#### Comparison
 
 
 
