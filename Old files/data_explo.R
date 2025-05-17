@@ -5,7 +5,7 @@
 ###
 
 ###
-### Import libraries
+### Import libraries ----
 ###
 
 library(gitcreds) # git
@@ -19,13 +19,13 @@ library(caret) # split data
 library(class) # KNN
 
 ###
-### Import the data 
+### Import the data ----
 ###
 
 KOI_table = read.csv("KOI_table_2025.03.23_01.50.59.csv",comment.char = "#",header = TRUE, stringsAsFactors = FALSE)
 
 ###
-### Data exploration
+## Data exploration ----
 ###
 
 head(KOI_table)
@@ -76,12 +76,8 @@ dim(KOI_table)
 # replace NA with specific value (mean, mice)
 
 
-
-
-
-
 ###
-### Data analysing 
+## Data analysing ----
 ###
 
 unique(KOI_table$koi_disposition)
@@ -101,7 +97,7 @@ pairs(selected_features, aes(color="koi_disposition"))
 cor_matrix <- cor(KOI_table_clean[, -which(names(KOI_table_clean) == "koi_disposition")], use = "complete.obs")
 corrplot(cor_matrix, method = "color", tl.cex = 0.6, tl.srt = 45)
 
-### Boxplots
+### Boxplots ----
 boxplot(KOI_table)
 # we should maybe standardize the data
 
@@ -119,7 +115,7 @@ barplot(prop_koi,
         ylab = "Proportion",
         xlab = "KOI Disposition")
 
-### PCA
+### PCA ----
 # We have a lot of features, PCA will help to reduce the dimension and interpret the features
 # Compute PCA
 pca <- prcomp(KOI_table_clean[, -which(names(KOI_table_clean) == "koi_disposition")], scale. = TRUE)
@@ -149,18 +145,18 @@ View(KOI_table)
 
 summary(KOI_table)
 
-<<<<<<< HEAD
+
 table(KOI_table$koi_disposition)
 
 detach(KOI_table)
-=======
+
 
 
 ###
-### Prediction
+## Prediction ----
 ###
 
-### Cross validation
+### Cross validation ----
 set.seed(123)  # For reproducibility
 train_index <- createDataPartition(koi_disposition, p = 0.8, list = FALSE)  # 80% training
 
@@ -171,12 +167,12 @@ head(train_set)
 dim(train_set)
 dim(val_set)
 
-### LDA
+### LDA ----
 
 KOI_table_clean.knn <- knn(train = , cl = koi_disposition, k = 3, prob = T)
 
 
-### Logistic regression
+### Logistic regression ----
 
 glm.fit <- glm(koi_disposition~., data = train_set, family=binomial)
 summary(glm.fit)
