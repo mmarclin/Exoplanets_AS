@@ -14,8 +14,8 @@ library(GGally) # pair plots
 library(corrplot) # correlation heatmap
 library(ggplot2) # box plots
 library(rgl) # 3D plot
-
 library(caret) # split data
+library(randomForest) # forest
 library(class) # KNN
 
 ###
@@ -158,14 +158,34 @@ detach(KOI_table)
 
 ### Cross validation ----
 set.seed(123)  # For reproducibility
-train_index <- createDataPartition(koi_disposition, p = 0.8, list = FALSE)  # 80% training
-
+KOI_table_clean$koi_disposition <- as.factor(KOI_table_clean$koi_disposition)
+train_index <- createDataPartition(KOI_table_clean$koi_disposition, p = 0.8, list = FALSE)
 train_set <- KOI_table_clean[train_index, ]
 val_set <- KOI_table_clean[-train_index, ]
 
 head(train_set)
 dim(train_set)
 dim(val_set)
+
+control <- trainControl(method = "cv", number = 5)  # 5-fold CV
+
+### Logistic regression ----
+glm_model <- train(koi_disposition ~ .,  data = train_set, method = "glm", family = 'binomial', trControl = control)
+glm_preds <- predict(glm_model, newdata = val_set)
+glm_preds <- factor(glm_preds, levels = levels(val_set$koi_disposition))
+
+cat("Performance GLM:\n")
+print(confusionMatrix(glm_preds, val_set$koi_disposition))
+
+### random forest ----
+rf_model <- train(koi_disposition ~ .,  data = train_set, method = "rf", family = 'binomial', trControl = control)
+rf_preds <- predict(rf_model, newdata = val_set)
+rf_preds <- factor(rf_preds, levels = levels(val_set$koi_disposition))
+
+cat("Performance GLM:\n")
+print(confusionMatrix(rf_preds, val_set$koi_disposition))
+
+
 
 ### LDA ----
 
