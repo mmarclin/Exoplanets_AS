@@ -58,28 +58,23 @@ dim(KOI_table_full)
 class(KOI_table_full)
 ```
 
-We have to remove the unnecessary columns which are : - object id -
-object name - satellite name - pdisposition (Kepler) (less information
-than disposition) - koi_depth_err1: Transit Depth Upper Unc. [ppm] (no
-information : NA) - koi_depth_err2: Transit Depth Lower Unc. [ppm] (no
-information : NA) - koi_tce_delivname: TCE Delivery (it's just the
-delivery type)
+We have to remove the unnecessary, unrelevant columns which are : 
+(data that are not relevant from a scientific, astronomic point of view)
+- object id 
+- object name 
+- satellite name 
+- pdisposition (Kepler) (less information than disposition) 
+- koi_depth_err1: Transit Depth Upper Unc. [ppm] (no information : NA) 
+- koi_depth_err2: Transit Depth Lower Unc. [ppm] (no information : NA) 
+- koi_tce_delivname: TCE Delivery (it's just the delivery type)
+We also don't take into account first the upper and lower bound of some features
+We will include them in our analysis later
 
 We choose to work on the class (confirmed, false positive) instead of
 the score, so we remove it
 
 We also remove the still unconfirmed candidate exoplanets because we
 only work with the ones whose analyse is finished
-
-Addition (Henry) : 
-
-In order to perform our first analysis, we need to remove the unrelevant
-features
-(data that are not relevant from a scientific, astronomic point of view). 
-In addition, we need to remove the columns in the datatsets that correspond to 
-an upper bound and upper bound of other data in the set. (these are incertitudes
-on the data). We will include these incertitudes in our analysis later.
-see below the real_columns_to_remove and the errors_columns : 
 
 ```{r}
 column_rm = c("kepid","kepoi_name","kepler_name","koi_pdisposition",
