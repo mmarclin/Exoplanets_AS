@@ -12,7 +12,7 @@ editor_options:
 knitr::opts_chunk$set(error = TRUE)
 ```
 
-### KOI_table_full
+### KOI_table
 
 Dataset from the NASA : source :
 <https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=cumulative>
@@ -34,8 +34,7 @@ library(rgl) # 3D plot
 
 ### Data exploration
 
-First of all, we begin by looking into our dataset (features, dimension,
-type)
+First of all, we begin by looking into our dataset (features, dimension, type)
 
 ```{r}
 head(KOI_table_full)
@@ -67,6 +66,7 @@ We have to remove the unnecessary, unrelevant columns which are :
 - koi_depth_err1: Transit Depth Upper Unc. [ppm] (no information : NA) 
 - koi_depth_err2: Transit Depth Lower Unc. [ppm] (no information : NA) 
 - koi_tce_delivname: TCE Delivery (it's just the delivery type)
+
 We also don't take into account first the upper and lower bound of some features
 We will include them in our analysis later
 
@@ -80,8 +80,8 @@ only work with the ones whose analyse is finished
 column_rm = c("kepid","kepoi_name","kepler_name","koi_pdisposition",
               "koi_score",
               "koi_teq_err1","koi_teq_err2","koi_tce_delivname")
-KOI_table_full <- KOI_table_full %>% select(-all_of(column_rm))
-KOI_table_full <- KOI_table_full %>% filter(koi_disposition != "CANDIDATE")
+KOI_table <- KOI_table_full %>% select(-all_of(column_rm))
+KOI_table <- KOI_table_full %>% filter(koi_disposition != "CANDIDATE")
 
 
 real_columns_to_remove <- c("kepid", "kepoi_name", "kepler_name", "koi_pdisposition", "koi_score", 
@@ -100,16 +100,16 @@ c("koi_period_err1", "koi_period_err2", "koi_time0bk_err1", "koi_time0bk_err2",
 We now have :
 
 ```{r}
-head(KOI_table_full)
-dim(KOI_table_full)
-names(KOI_table_full)
+head(KOI_table)
+dim(KOI_table)
+names(KOI_table)
 ```
 
 We encode binarly the class : 0 if false positive, 1 if confirmed
 exoplanet
 
 ```{r}
-KOI_table_full$koi_disposition <- ifelse(KOI_table_full$koi_disposition == "CONFIRMED", 1, 0)
+KOI_table$koi_disposition <- ifelse(KOI_table$koi_disposition == "CONFIRMED", 1, 0)
 unique(KOI_table$koi_disposition)
 ```
 
@@ -120,7 +120,7 @@ unique(KOI_table$koi_disposition)
 Let's work on missing datapoint
 
 ```{r}
-colSums(is.na(KOI_table_full))
+colSums(is.na(KOI_table))
 ```
 
 We have different options : - remove NA - fill the NA with specific
@@ -129,9 +129,9 @@ value : mean, mice, etc...
 If we remove NA, we have : We lose 653 observations in total
 
 ```{r}
-KOI_table = na.omit(KOI_table_full)
+KOI_table = na.omit(KOI_table)
 dim(KOI_table)
-dim(KOI_table_full)
+dim(KOI_table)
 ```
 
 ### Data analyse
@@ -179,7 +179,7 @@ A revoir !
 
 ```{r}
 ### Pairplot for some features
-#pairs(KOI_table_full)
+#pairs(KOI_table)
 #selected_features <- KOI_table[, c("koi_fpflag_nt", "koi_period", "koi_duration", "koi_teq", #"koi_steff", "koi_disposition")]
 #ggpairs(selected_features, aes(color = "koi_disposition"))
 #pairs(selected_features, aes(color="koi_disposition"))
@@ -187,7 +187,18 @@ A revoir !
 
 #### Features distributions
 
+
+
+
+
 ##### Normality test
+
+```{r}
+n <- dim(KOI_table)
+p <- dim(KOI_table)
+```
+
+
 
 ##### Standardized data
 
