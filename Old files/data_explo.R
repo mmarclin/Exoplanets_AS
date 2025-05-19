@@ -5,7 +5,7 @@
 ###
 
 ###
-### Import libraries
+### Import libraries ----
 ###
 
 library(gitcreds) # git
@@ -14,18 +14,18 @@ library(GGally) # pair plots
 library(corrplot) # correlation heatmap
 library(ggplot2) # box plots
 library(rgl) # 3D plot
-
 library(caret) # split data
+library(randomForest) # forest
 library(class) # KNN
 
 ###
-### Import the data 
+### Import the data ----
 ###
 
 KOI_table = read.csv("KOI_table_2025.03.23_01.50.59.csv",comment.char = "#",header = TRUE, stringsAsFactors = FALSE)
 
 ###
-### Data exploration
+## Data exploration ----
 ###
 
 head(KOI_table)
@@ -76,12 +76,8 @@ dim(KOI_table)
 # replace NA with specific value (mean, mice)
 
 
-
-
-
-
 ###
-### Data analysing 
+## Data analysing ----
 ###
 
 unique(KOI_table$koi_disposition)
@@ -101,7 +97,7 @@ pairs(selected_features, aes(color="koi_disposition"))
 cor_matrix <- cor(KOI_table_clean[, -which(names(KOI_table_clean) == "koi_disposition")], use = "complete.obs")
 corrplot(cor_matrix, method = "color", tl.cex = 0.6, tl.srt = 45)
 
-### Boxplots
+### Boxplots ----
 boxplot(KOI_table)
 # we should maybe standardize the data
 
@@ -119,7 +115,7 @@ barplot(prop_koi,
         ylab = "Proportion",
         xlab = "KOI Disposition")
 
-### PCA
+### PCA ----
 # We have a lot of features, PCA will help to reduce the dimension and interpret the features
 # Compute PCA
 pca <- prcomp(KOI_table_clean[, -which(names(KOI_table_clean) == "koi_disposition")], scale. = TRUE)
@@ -149,21 +145,21 @@ View(KOI_table)
 
 summary(KOI_table)
 
-<<<<<<< HEAD
+
 table(KOI_table$koi_disposition)
 
 detach(KOI_table)
-=======
+
 
 
 ###
-### Prediction
+## Prediction ----
 ###
 
-### Cross validation
+### Cross validation ----
 set.seed(123)  # For reproducibility
-train_index <- createDataPartition(koi_disposition, p = 0.8, list = FALSE)  # 80% training
-
+KOI_table_clean$koi_disposition <- as.factor(KOI_table_clean$koi_disposition)
+train_index <- createDataPartition(KOI_table_clean$koi_disposition, p = 0.8, list = FALSE)
 train_set <- KOI_table_clean[train_index, ]
 val_set <- KOI_table_clean[-train_index, ]
 
@@ -171,12 +167,32 @@ head(train_set)
 dim(train_set)
 dim(val_set)
 
-### LDA
+control <- trainControl(method = "cv", number = 5)  # 5-fold CV
+
+### Logistic regression ----
+glm_model <- train(koi_disposition ~ .,  data = train_set, method = "glm", family = 'binomial', trControl = control)
+glm_preds <- predict(glm_model, newdata = val_set)
+glm_preds <- factor(glm_preds, levels = levels(val_set$koi_disposition))
+
+cat("Performance GLM:\n")
+print(confusionMatrix(glm_preds, val_set$koi_disposition))
+
+### random forest ----
+rf_model <- train(koi_disposition ~ .,  data = train_set, method = "rf", family = 'binomial', trControl = control)
+rf_preds <- predict(rf_model, newdata = val_set)
+rf_preds <- factor(rf_preds, levels = levels(val_set$koi_disposition))
+
+cat("Performance GLM:\n")
+print(confusionMatrix(rf_preds, val_set$koi_disposition))
+
+
+
+### LDA ----
 
 KOI_table_clean.knn <- knn(train = , cl = koi_disposition, k = 3, prob = T)
 
 
-### Logistic regression
+### Logistic regression ----
 
 glm.fit <- glm(koi_disposition~., data = train_set, family=binomial)
 summary(glm.fit)
