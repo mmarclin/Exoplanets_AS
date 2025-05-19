@@ -1,23 +1,25 @@
 ---
 title: "Exoplanet"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
 ---
 
 ```{r setup, echo = FALSE}
 knitr::opts_chunk$set(error = TRUE)
 ```
 
-
-
 ### KOI_table_full
-Dataset from the NASA : 
-source : https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=cumulative
+
+Dataset from the NASA : source :
+<https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=cumulative>
 
 ```{r}
 KOI_table_full = read.csv("KOI_table_2025.03.23_01.50.59.csv",comment.char = "#",header = TRUE, stringsAsFactors = FALSE)
 ```
-
-
 
 ### Librairies
 
@@ -30,19 +32,19 @@ library(ggplot2) # box plots
 library(rgl) # 3D plot
 ```
 
+### Data exploration
 
-
-
-### Data exploration 
-
-First of all, we begin by looking into our dataset (features, dimension, type)
+First of all, we begin by looking into our dataset (features, dimension,
+type)
 
 ```{r}
 head(KOI_table_full)
 ```
+
 ```{r}
 names(KOI_table_full)
 ```
+
 ```{r}
 str(KOI_table_full)
 ```
@@ -56,18 +58,19 @@ dim(KOI_table_full)
 class(KOI_table_full)
 ```
 
-We have to remove the unnecessary columns which are : 
-- object id
-- object name
-- satellite name
-- pdisposition (Kepler) (less information than disposition)
-- koi_depth_err1: Transit Depth Upper Unc. [ppm] (no information : NA)
-- koi_depth_err2: Transit Depth Lower Unc. [ppm] (no information : NA)
-- koi_tce_delivname: TCE Delivery (it's just the delivery type)
+We have to remove the unnecessary columns which are : - object id -
+object name - satellite name - pdisposition (Kepler) (less information
+than disposition) - koi_depth_err1: Transit Depth Upper Unc. [ppm] (no
+information : NA) - koi_depth_err2: Transit Depth Lower Unc. [ppm] (no
+information : NA) - koi_tce_delivname: TCE Delivery (it's just the
+delivery type)
 
-We choose to work on the class (confirmed, false positive) instead of the score, so we remove it
+We choose to work on the class (confirmed, false positive) instead of
+the score, so we remove it
 
-We also remove the still unconfirmed candidate exoplanets because we only work with the ones whose analyse is finished
+We also remove the still unconfirmed candidate exoplanets because we
+only work with the ones whose analyse is finished
+
 ```{r}
 column_rm = c("kepid","kepoi_name","kepler_name","koi_pdisposition",
               "koi_score",
@@ -75,14 +78,18 @@ column_rm = c("kepid","kepoi_name","kepler_name","koi_pdisposition",
 KOI_table_full <- KOI_table_full %>% select(-all_of(column_rm))
 KOI_table_full <- KOI_table_full %>% filter(koi_disposition != "CANDIDATE")
 ```
-We now have : 
+
+We now have :
+
 ```{r}
 head(KOI_table_full)
 dim(KOI_table_full)
 names(KOI_table_full)
 ```
 
-We encode binarly the class : 0 if false positive, 1 if confirmed exoplanet
+We encode binarly the class : 0 if false positive, 1 if confirmed
+exoplanet
+
 ```{r}
 KOI_table_full$koi_disposition <- ifelse(KOI_table_full$koi_disposition == "CONFIRMED", 1, 0)
 unique(KOI_table$koi_disposition)
@@ -93,21 +100,21 @@ unique(KOI_table$koi_disposition)
 #### NA values
 
 Let's work on missing datapoint
+
 ```{r}
 colSums(is.na(KOI_table_full))
 ```
-We have different options : 
-- remove NA
-- fill the NA with specific value : mean, mice, etc...
+
+We have different options : - remove NA - fill the NA with specific
+value : mean, mice, etc...
 
 If we remove NA, we have : We lose 653 observations in total
+
 ```{r}
 KOI_table = na.omit(KOI_table_full)
 dim(KOI_table)
 dim(KOI_table_full)
 ```
-
-
 
 ### Data analyse
 
@@ -117,10 +124,11 @@ attach(KOI_table)
 
 #### Class distribution
 
-We can look for class imbalance : 
-Class imbalance can biased the model towards the majority class
-- it can lead to poor recall or precision on the minority class 
-- it can draw boundaries too close to the minority class (Log Reg, SVM)
+We can look for class imbalance : Class imbalance can biased the model
+towards the majority class - it can lead to poor recall or precision on
+the minority class - it can draw boundaries too close to the minority
+class (Log Reg, SVM)
+
 ```{r}
 # Create a frequency table
 table_koi <- table(KOI_table[["koi_disposition"]])
@@ -135,25 +143,28 @@ barplot(prop_koi,
         ylab = "Proportion",
         xlab = "KOI Disposition")
 ```
-In our case, we can see imbalance between classes that we can handle with for example : 
-- Oversampling (SMOTE) or Undersampling
 
-A revoir ! 
-```{r}
+In our case, we can see imbalance between classes that we can handle
+with for example : - Oversampling (SMOTE) or Undersampling
+
+A revoir !
+
+```{r small_plot, fig.width=5, fig.height=3}
 # Per class
-for (feature in KOI_table){
-  boxplot(feature ~ koi_disposition, data = KOI_table, main = "Boxplot by Class")
-}
-dim(koi_disposition)
+#for (feature in KOI_table){
+#  boxplot(feature ~ koi_disposition, data = KOI_table, main = "Boxplot by Class")
+#}
+#dim(koi_disposition)
 ```
 
 A revoir !
+
 ```{r}
 ### Pairplot for some features
 #pairs(KOI_table_full)
-selected_features <- KOI_table[, c("koi_fpflag_nt", "koi_period", "koi_duration", "koi_teq", "koi_steff", "koi_disposition")]
-ggpairs(selected_features, aes(color = "koi_disposition"))
-pairs(selected_features, aes(color="koi_disposition"))
+#selected_features <- KOI_table[, c("koi_fpflag_nt", "koi_period", "koi_duration", "koi_teq", #"koi_steff", "koi_disposition")]
+#ggpairs(selected_features, aes(color = "koi_disposition"))
+#pairs(selected_features, aes(color="koi_disposition"))
 ```
 
 #### Features distributions
@@ -162,7 +173,8 @@ pairs(selected_features, aes(color="koi_disposition"))
 
 ##### Standardized data
 
-Boxplots 
+Boxplots
+
 ```{r}
 KOI_table_scaled <- KOI_table
 KOI_table_scaled[, -which(names(KOI_table_scaled) == "koi_disposition")] <- scale(KOI_table_scaled[, -which(names(KOI_table_scaled) == "koi_disposition")])
@@ -174,12 +186,14 @@ KOI_table_scaled
 #### Correlation
 
 Correlation between features
+
 ```{r}
 cor_matrix <- cor(KOI_table[, -which(names(KOI_table) == "koi_disposition")], use = "complete.obs")
 corrplot(cor_matrix, method = "color", tl.cex = 0.6, tl.srt = 45)
 ```
 
-Correlation between features and the class : 
+Correlation between features and the class :
+
 ```{r}
 
 ```
@@ -188,7 +202,9 @@ Correlation between features and the class :
 
 ##### PCA
 
-We have a lot of features, PCA will help to reduce the dimension and interpret the features
+We have a lot of features, PCA will help to reduce the dimension and
+interpret the features
+
 ```{r}
 pca <- prcomp(KOI_table[, -which(names(KOI_table) == "koi_disposition")], scale. = TRUE)
 summary(pca)
@@ -219,7 +235,8 @@ ggplot(loadings_long %>% filter(Principal_Component == "PC1"), aes(x = reorder(F
   labs(title = "PCA Loadings for PC1", x = "Features", y = "Loading Value")
 ```
 
-First 2 principal components : 
+First 2 principal components :
+
 ```{r}
 # Select the first 2 principal components
 df_pca <- data.frame(pca$x[, 1:2], label = koi_disposition)
@@ -229,7 +246,8 @@ ggplot(df_pca, aes(x = PC1, y = PC2, color = label)) +
   theme_minimal()
 ```
 
-First 3 principal components : 
+First 3 principal components :
+
 ```{r}
 # 3D Scatter Plot
 df_pca <- data.frame(pca$x[, 1:3], label = koi_disposition)
@@ -240,7 +258,8 @@ plot3d(df_pca$PC1, df_pca$PC2, df_pca$PC3,
        main = "3D PCA Visualization")
 ```
 
-First 5 principal components : 
+First 5 principal components :
+
 ```{r}
 # Select the first 5 principal components
 df_pca_5 <- data.frame(pca$x[, 1:5], label = koi_disposition)
@@ -248,15 +267,13 @@ df_pca_5 <- data.frame(pca$x[, 1:5], label = koi_disposition)
 ggparcoord(df_pca_5, columns = 1:5, groupColumn = "label", alphaLines = 0.5)
 ```
 
-Entre parenthèse
-KOI_table_PCA = pca$x
-On ne garde que les p premières composantes : 
-p = 20 
+Entre parenthèse KOI_table_PCA = pca$x
+On ne garde que les p premières composantes :
+p = 20
 Pour ..
 cumsum(eigenvalues)[20]/tail(cumsum(eigenvalues),1)
 % de la variance totale
-KOI_table_PCA = pca$x[,1:20]
-dim(KOI_table_PCA)
+KOI_table_PCA = pca$x[,1:20] dim(KOI_table_PCA)
 
 #### Outliers
 
@@ -265,7 +282,7 @@ library(mice)        # Handling missing data
 library(VIM)         # Visualizing missing data
 ```
 
-A revoir ! 
+A revoir !
 
 ```{r}
 outlier_indices_list <- list()  # Initialize empty list to store indices
@@ -316,17 +333,14 @@ for (feature in KOI_table) {
 #skewness(df$feature1)
 ```
 
-
-
-### Classification 
+### Classification
 
 ```{r}
 library(caret) # split data
 ```
 
-We divide the dataset into a : 
-- training set
-- a testing set
+We divide the dataset into a : - training set - a testing set
+
 ```{r}
 set.seed(123)  # For reproducibility
 train_index <- createDataPartition(koi_disposition, p = 0.8, list = FALSE)  # 80% training
@@ -343,34 +357,33 @@ dim(val_set)
 
 #### LDA
 
-
 #### KNN
 
 ```{r}
 library(class) # KNN
 ```
 
-Let's try K-Nearest Neighbor method : 
+Let's try K-Nearest Neighbor method :
+
 ```{r}
 #KOI_table.knn <- knn(train = , cl = koi_disposition, k = 3, prob = T)
 ```
 
-
 #### SVM
 
-
 #### Decision Tree
-
 
 #### Logistic regression
 
 Fitting the model on the dataset
+
 ```{r}
 glm.fit <- glm(koi_disposition~., data = train_set, family=binomial)
 summary(glm.fit)
 ```
 
 Prediction on the testing set
+
 ```{r}
 # Prediction on validation set
 val_probs <- predict(glm.fit, newdata = val_set, type = "response")
@@ -384,12 +397,8 @@ mean(val_pred == val_set$koi_disposition)
 
 #### Comparison
 
-
-
-
 ### Incertitudes influence
 
 ```{r}
 
 ```
-
