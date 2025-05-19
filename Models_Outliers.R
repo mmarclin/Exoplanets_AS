@@ -1,8 +1,4 @@
-summary(pca_robust)
 
-summary(pca_log)
-
-summary(pca_capped)
 
 ########## Models : ##########################
 library(caret)
