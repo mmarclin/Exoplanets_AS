@@ -167,7 +167,7 @@ head(train_set)
 dim(train_set)
 dim(val_set)
 
-control <- trainControl(method = "cv", number = 5)  # 5-fold CV
+control <- trainControl(method = 'cv', number = 5)  # 5-fold CV
 
 ### Logistic regression ----
 glm_model <- train(koi_disposition ~ .,  data = train_set, method = "glm", family = 'binomial', trControl = control)
@@ -178,13 +178,34 @@ cat("Performance GLM:\n")
 print(confusionMatrix(glm_preds, val_set$koi_disposition))
 
 ### random forest ----
-rf_model <- train(koi_disposition ~ .,  data = train_set, method = "rf", family = 'binomial', trControl = control)
+library(doParallel)
+cl <- makePSOCKcluster(detectCores() - 1)
+registerDoParallel(cl)
+rf_model <- train(koi_disposition ~ .,  data = train_set, method = "rf", trControl = control, metric = 'Accuracy',
+            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set) - 1))), ntree = 500)
+print(rf_model$finalModel)
+
+## get variable importance , and turn into a data frame
+var_imp <- varImp(rf_model, scale = FALSE)$importance
+var_imp <- data.frame(variable = row.names(var_imp), importance = var_imp$Overall)
+ggplot(var_imp %>% arrange(importance), aes(x = reorder(variable, importance), y = importance)) + 
+  geom_bar(stat = 'identity') + 
+  coord_flip() +
+  xlab('Variables') +
+  labs(title = 'Random Forest Variable Importance') + 
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 10), 
+    axis.title = element_text(size = 15), 
+    plot.title = element_text(size = 20)
+  )
+
+## generate prediction and print the accuracy
 rf_preds <- predict(rf_model, newdata = val_set)
 rf_preds <- factor(rf_preds, levels = levels(val_set$koi_disposition))
-
-cat("Performance GLM:\n")
+accuracy <- mean(rf_preds == val_set$koi_disposition)*100
+cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds, val_set$koi_disposition))
-
 
 
 ### LDA ----
