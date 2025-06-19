@@ -23,7 +23,7 @@ KOI_table_full = read.csv("KOI_table_2025.03.23_01.50.59.csv",comment.char = "#"
 
 ### Librairies
 
-```{r}
+```{r message=FALSE}
 library(gitcreds) # git
 library(dplyr) # selection
 library(GGally) # pair plots
@@ -33,6 +33,8 @@ library(rgl) # 3D plot
 ```
 
 ### Data exploration
+
+#### Exploration
 
 First of all, we begin by looking into our dataset (features, dimension, type)
 
@@ -56,6 +58,7 @@ summary(KOI_table)
 dim(KOI_table_full)
 class(KOI_table_full)
 ```
+#### Input space
 
 We have to remove the unnecessary, unrelevant columns which are : 
 (data that are not relevant from a scientific, astronomic point of view)
@@ -65,7 +68,7 @@ We have to remove the unnecessary, unrelevant columns which are :
 - pdisposition (Kepler) (less information than disposition) 
 - koi_depth_err1: Transit Depth Upper Unc. [ppm] (no information : NA) 
 - koi_depth_err2: Transit Depth Lower Unc. [ppm] (no information : NA) 
-- koi_tce_delivname: TCE Delivery (it's just the delivery type)
+- koi_tce_delivname: TCE Delivery (it's just the delivery type) 
 
 We also don't take into account first the upper and lower bound of some features
 We will include them in our analysis later
@@ -80,30 +83,39 @@ only work with the ones whose analyse is finished
 column_rm = c("kepid","kepoi_name","kepler_name","koi_pdisposition",
               "koi_score",
               "koi_teq_err1","koi_teq_err2","koi_tce_delivname")
-KOI_table <- KOI_table_full %>% select(-all_of(column_rm))
-KOI_table <- KOI_table_full %>% filter(koi_disposition != "CANDIDATE")
 
+column_incertitudes = c("koi_period_err1", "koi_period_err2", "koi_time0bk_err1", "koi_time0bk_err2", 
+                        "koi_impact_err1", "koi_impact_err2", "koi_duration_err1", "koi_duration_err2", 
+                        "koi_depth_err1", "koi_depth_err2", "koi_prad_err1", "koi_prad_err2", 
+                        "koi_insol_err1", "koi_insol_err2", "koi_steff_err1", "koi_steff_err2", 
+                        "koi_slogg_err1", "koi_slogg_err2", "koi_srad_err1", "koi_srad_err2")
+
+KOI_table <- KOI_table_full %>% select(-all_of(column_rm))
+KOI_table <- KOI_table %>% filter(koi_disposition != "CANDIDATE")
+
+KOI_table_wo_incertitudes <- KOI_table %>% select(-all_of(column_incertitudes))
 
 real_columns_to_remove <- c("kepid", "kepoi_name", "kepler_name", "koi_pdisposition", "koi_score", 
                        "koi_fpflag_nt", "koi_fpflag_ss", "koi_fpflag_co", "koi_fpflag_ec", 
                        "ra", "dec", "koi_kepmag", "koi_model_snr", "koi_tce_plnt_num", 
                        "koi_tce_delivname")
 
-c("koi_period_err1", "koi_period_err2", "koi_time0bk_err1", "koi_time0bk_err2", 
-                   "koi_impact_err1", "koi_impact_err2", "koi_duration_err1", "koi_duration_err2", 
-                   "koi_depth_err1", "koi_depth_err2", "koi_prad_err1", "koi_prad_err2", 
-                   "koi_insol_err1", "koi_insol_err2", "koi_steff_err1", "koi_steff_err2", 
-                   "koi_slogg_err1", "koi_slogg_err2", "koi_srad_err1", "koi_srad_err2", "koi_teq_err1", "koi_teq_err2") 
-
 ```
 
-We now have :
+We now have : two input space: one with and one without the incertitudes
 
 ```{r}
 head(KOI_table)
 dim(KOI_table)
 names(KOI_table)
 ```
+
+```{r}
+head(KOI_table_wo_incertitudes)
+dim(KOI_table_wo_incertitudes)
+names(KOI_table_wo_incertitudes)
+```
+#### Class encoding
 
 We encode binarly the class : 0 if false positive, 1 if confirmed
 exoplanet
@@ -130,8 +142,9 @@ If we remove NA, we have : We lose 653 observations in total
 
 ```{r}
 KOI_table = na.omit(KOI_table)
+KOI_table_wo_incertitudes = na.omit(KOI_table_wo_incertitudes)
 dim(KOI_table)
-dim(KOI_table)
+dim(KOI_table_wo_incertitudes)
 ```
 
 ### Data analyse
@@ -167,12 +180,12 @@ with for example : - Oversampling (SMOTE) or Undersampling
 
 A revoir !
 
-```{r small_plot, fig.width=5, fig.height=3}
+```{r small_plot, fig.height=3, fig.width=5, message=FALSE}
 # Per class
-#for (feature in KOI_table){
-#  boxplot(feature ~ koi_disposition, data = KOI_table, main = "Boxplot by Class")
-#}
-#dim(koi_disposition)
+for (feature in KOI_table){
+  boxplot(feature ~ koi_disposition, data = KOI_table, main = "Boxplot by Class")
+}
+dim(koi_disposition)
 ```
 
 A revoir !
@@ -364,29 +377,119 @@ for (feature in KOI_table) {
 
 ### Classification
 
-```{r}
-library(caret) # split data
+#### Split the data
+
+```{r message=FALSE, warning=FALSE}
+library(caret)
 ```
 
-We divide the dataset into a : - training set - a testing set
+We divide the dataset into a : 
+- training set 
+- validation set
+- testing set
 
 ```{r}
 set.seed(123)  # For reproducibility
-KOI_table_clean$koi_disposition <- as.factor(KOI_table_clean$koi_disposition)
-train_index <- createDataPartition(KOI_table_clean$koi_disposition, p =  0.8, list = FALSE)
+
+# Step 1: Split into train (70%) and temp (40%)
+train_index <- createDataPartition(KOI_table_clean$koi_disposition, p = 0.7, list = FALSE)
 train_set <- KOI_table_clean[train_index, ]
-val_set <- KOI_table_clean[-train_index, ]
+temp_set  <- KOI_table_clean[-train_index, ]
+
+# Step 2: Split temp into validation and test (15%)
+val_index <- createDataPartition(temp_set$koi_disposition, p = 0.5, list = FALSE)
+val_set <- temp_set[val_index, ]
+test_set <- temp_set[-val_index, ]
+
+train_set$koi_disposition <- as.factor(train_set$koi_disposition)
+val_set$koi_disposition <- as.factor(val_set$koi_disposition)
+test_set$koi_disposition <- as.factor(test_set$koi_disposition)
+
 ```
+
 
 ```{r}
 head(train_set)
 dim(train_set)
 dim(val_set)
+dim(test_set)
 
 control <- trainControl(method = 'cv', number = 5)  # 5-fold CV
+
 ```
 
-### random forest
+#### LDA
+
+#### KNN
+
+Let's try K-Nearest Neighbor method :
+
+```{r}
+library(class) # KNN
+```
+
+```{r}
+knn_model <- train(
+  koi_disposition ~ ., 
+  data = train_set,
+  method = "knn",
+  preProcess = c("center", "scale"),  # normalize predictors
+  tuneLength = 10  # try different values of k (number of neighbors)
+)
+```
+
+Results:
+```{r}
+print(knn_model)
+plot(knn_model)
+```
+```{r}
+knn_preds <- predict(knn_model, newdata = val_set)
+confusionMatrix(knn_preds, val_set$koi_disposition)
+```
+We can see very good prediction score using KNN.
+Given the high dimensional space, we still have enough data to keep the distances meaningful.
+
+KNN doesn't have internal coefficients (it's non-parametric), so we can't extract direct weights. 
+But we can use model-agnostic methods like:
+```{r}
+library(vip)
+vip(knn_model)
+```
+
+#### SVM
+
+```{r warning=FALSE}
+library(e1071)
+```
+```{r}
+svm_model <- train(
+  koi_disposition ~ .,
+  data = train_set,
+  method = "svmLinear",
+  preProcess = c("center", "scale"),
+  trControl = trainControl(method = "cv", number = 5),
+  tuneGrid = expand.grid(C = c(0.01, 0.1, 1, 10, 100))  # define multiple values of C
+)
+```
+```{r}
+print(svm_model)
+plot(svm_model)  # plots accuracy vs cost (C) values
+
+```
+```{r}
+svm_preds <- predict(svm_model, newdata = val_set)
+confusionMatrix(svm_preds, val_set$koi_disposition)
+```
+We have a little better accuracy compared to KNN for the validation set: 0.9942 against 0.9856
+
+```{r}
+varImp(svm_model)
+```
+
+#### Decision Tree
+
+#### Random forest
 ```{r}
 library(doParallel)
 cl <- makePSOCKcluster(detectCores() - 1)
@@ -417,26 +520,7 @@ accuracy <- mean(rf_preds == val_set$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds, val_set$koi_disposition))
 ```
-
-
-
-#### LDA
-
-#### KNN
-
-```{r}
-library(class) # KNN
-```
-
-Let's try K-Nearest Neighbor method :
-
-```{r}
-#KOI_table.knn <- knn(train = , cl = koi_disposition, k = 3, prob = T)
-```
-
-#### SVM
-
-#### Decision Tree
+We still have a high accuracy but the precision has gone down.
 
 
 #### Logistic regression
@@ -447,7 +531,6 @@ Fitting the model on the dataset
 glm.fit <- glm(koi_disposition~., data = train_set, family=binomial)
 summary(glm.fit)
 ```
-
 Prediction on the testing set
 
 ```{r}
@@ -462,6 +545,102 @@ mean(val_pred == val_set$koi_disposition)
 ```
 
 #### Comparison
+
+### Clustering
+
+```{r}
+class <- train_set[1]
+features <- train_set [-1]
+```
+
+#### Hiearchical clustering
+```{r}
+library(cluster)
+```
+
+Compute the dissimilarity matrix
+```{r}
+D.e <- dist(features,method="euclidean") 
+D.m <- dist(features,method="manhattan") 
+D.c <- dist(features,method="canberra") 
+```
+
+Testing multiple linkage
+```{r}
+D.es <- hclust(D.e, method = 'single')    # closest pair of points
+D.ea <- hclust(D.e, method = 'average')   # average distance between all points
+D.ec <- hclust(D.e, method = 'complete')  # farthest pair of points
+D.ew <- hclust(D.e, method = 'ward.D2')   # minimize increase in total within-cluster variance
+```
+
+Plot dendograms
+```{r}
+plot(
+  D.es,
+  main = 'euclidean-single',
+  hang = -0.1,
+  xlab = '',
+  labels = F,
+  cex = 0.6,
+  sub = ''
+)
+rect.hclust(D.es, k = 2)   # 2 clusters
+plot(
+  D.ec,
+  main = 'euclidean-complete',
+  hang = -0.1,
+  xlab = '',
+  labels = F,
+  cex = 0.6,
+  sub = ''
+)
+rect.hclust(D.ec, k = 2)
+plot(
+  D.ea,
+  main = 'euclidean-average',
+  hang = -0.1,
+  xlab = '',
+  labels = F,
+  cex = 0.6,
+  sub = ''
+)
+rect.hclust(D.ea, k = 2)
+```
+```{r}
+# Cut tree into k clusters (e.g., k = 3)
+cluster_labels <- cutree(D.es, k = 2)
+cluster_labels
+length(which(cluster_labels==TRUE))
+length(cluster_labels==FALSE)
+```
+
+```{r}
+# Add cluster assignments to your data
+train_set$cluster <- as.factor(cluster_labels)
+table(train_set$cluster)
+pca <- prcomp(features, scale. = TRUE)
+plot(pca$x[,1], pca$x[,2],
+     col = cluster_labels,
+     pch = 19,
+     xlab = "PC1", ylab = "PC2",
+     main = "PCA of Features Colored by Hierarchical Clusters")
+legend("topright", legend = paste("Cluster", 1:2), col = 1:2, pch = 19)
+```
+
+
+```{r}
+library(ggplot2)
+
+pca_df <- as.data.frame(pca$x[, 1:2])
+pca_df$cluster <- as.factor(cluster_labels)
+
+ggplot(pca_df, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point(size = 1.8) +
+  labs(title = "PCA Colored by Clusters", color = "Cluster") +
+  theme_minimal()
+
+```
+
 
 ### Incertitudes influence
 
