@@ -392,9 +392,9 @@ We divide the dataset into a :
 set.seed(123)  # For reproducibility
 
 # Step 1: Split into train (70%) and temp (40%)
-train_index <- createDataPartition(KOI_table_clean$koi_disposition, p = 0.7, list = FALSE)
-train_set <- KOI_table_clean[train_index, ]
-temp_set  <- KOI_table_clean[-train_index, ]
+train_index <- createDataPartition(KOI_table$koi_disposition, p = 0.7, list = FALSE)
+train_set <- KOI_table[train_index, ]
+temp_set  <- KOI_table[-train_index, ]
 
 # Step 2: Split temp into validation and test (15%)
 val_index <- createDataPartition(temp_set$koi_disposition, p = 0.5, list = FALSE)
@@ -407,6 +407,20 @@ test_set$koi_disposition <- as.factor(test_set$koi_disposition)
 
 ```
 
+```{r}
+train_index_wo <- createDataPartition(KOI_table_wo_incertitudes$koi_disposition, p = 0.7, list = FALSE)
+train_set_wo <- KOI_table_wo_incertitudes[train_index, ]
+temp_set_wo  <- KOI_table_wo_incertitudes[-train_index, ]
+
+val_index_wo <- createDataPartition(temp_set$koi_disposition, p = 0.5, list = FALSE)
+val_set_wo <- temp_set_wo[val_index, ]
+test_set_wo <- temp_set_wo[-val_index, ]
+
+train_set_wo$koi_disposition <- as.factor(train_set_wo$koi_disposition)
+val_set_wo$koi_disposition <- as.factor(val_set_wo$koi_disposition)
+test_set_wo$koi_disposition <- as.factor(test_set_wo$koi_disposition)
+
+```
 
 ```{r}
 head(train_set)
@@ -420,10 +434,22 @@ control <- trainControl(method = 'cv', number = 5)  # 5-fold CV
 
 #### LDA
 
+LDA can be robust without normality assumption
+```{r warning=FALSE}
+library(MASS) 
+```
+```{r}
+class <- train_set[1]
+features <- train_set[-1]
+
+KOI_table.lda <- lda(as.matrix(features), class)
+```
+
 #### KNN
 
 Let's try K-Nearest Neighbor method :
 
+##### With incertitudes
 ```{r}
 library(class) # KNN
 ```
@@ -457,7 +483,37 @@ library(vip)
 vip(knn_model)
 ```
 
+##### Without incertitudes
+
+```{r}
+knn_model_wo <- train(
+  koi_disposition ~ ., 
+  data = train_set_wo,
+  method = "knn",
+  preProcess = c("center", "scale"),  # normalize predictors
+  tuneLength = 10  # try different values of k (number of neighbors)
+)
+```
+
+Results:
+```{r}
+print(knn_model_wo)
+plot(knn_model_wo)
+```
+```{r}
+knn_preds_wo <- predict(knn_model_wo, newdata = val_set_wo)
+confusionMatrix(knn_preds_wo, val_set_wo$koi_disposition)
+```
+
+
+```{r}
+vip(knn_model_wo)
+```
+
+
 #### SVM
+
+##### With incertitudes
 
 ```{r warning=FALSE}
 library(e1071)
@@ -485,6 +541,37 @@ We have a little better accuracy compared to KNN for the validation set: 0.9942 
 
 ```{r}
 varImp(svm_model)
+```
+
+##### Without incertitudes
+
+We begin by training the model on the training set
+```{r}
+svm_model_wo <- train(
+  koi_disposition ~ .,
+  data = train_set_wo,
+  method = "svmLinear",
+  preProcess = c("center", "scale"),
+  trControl = trainControl(method = "cv", number = 5),
+  tuneGrid = expand.grid(C = c(0.01, 0.1, 1, 10, 100))  # define multiple values of C
+)
+```
+```{r}
+print(svm_model_wo)
+plot(svm_model_wo)  # plots accuracy vs cost (C) values
+
+```
+
+We obtain an accuracy of 
+
+```{r}
+svm_preds_wo <- predict(svm_model_wo, newdata = val_set_wo)
+confusionMatrix(svm_preds_wo, val_set_wo$koi_disposition)
+```
+
+
+```{r}
+varImp(svm_model_wo)
 ```
 
 #### Decision Tree
