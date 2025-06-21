@@ -578,6 +578,31 @@ varImp(svm_model_wo)
 ```
 
 #### Decision Tree
+##### With incertitudes
+```{r}
+library(rpart)
+tree_model <- rpart(koi_disposition ~ ., data = train_set, method = "class")
+summary(tree_model_wo)
+tree_pred <- predict(tree_model, newdata = val_set, type = "class")
+table(Predicted = tree_pred, Actual = val_set$koi_disposition)
+```
+```{r}
+library(rpart.plot)
+rpart.plot(tree_model)
+```
+
+##### Without incertitudes
+```{r}
+library(rpart)
+tree_model_wo <- rpart(koi_disposition ~ ., data = train_set_wo, method = "class")
+summary(tree_model_wo)
+tree_pred_wo <- predict(tree_model_wo, newdata = val_set_wo, type = "class")
+table(Predicted = tree_pred_wo, Actual = val_set_wo$koi_disposition)
+```
+```{r}
+library(rpart.plot)
+rpart.plot(tree_model_wo)
+```
 
 #### Random forest
 ##### with incertitudes
