@@ -69,6 +69,7 @@ We have to remove the unnecessary, unrelevant columns which are :
 - koi_depth_err1: Transit Depth Upper Unc. [ppm] (no information : NA) 
 - koi_depth_err2: Transit Depth Lower Unc. [ppm] (no information : NA) 
 - koi_tce_delivname: TCE Delivery (it's just the delivery type) 
+- 
 
 We also don't take into account first the upper and lower bound of some features
 We will include them in our analysis later
