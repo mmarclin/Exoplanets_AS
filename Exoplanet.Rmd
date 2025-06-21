@@ -23,7 +23,7 @@ KOI_table_full = read.csv("KOI_table_2025.03.23_01.50.59.csv",comment.char = "#"
 
 ### Librairies
 
-```{r message=FALSE}
+```{r message=FALSE, warning=FALSE}
 library(gitcreds) # git
 library(dplyr) # selection
 library(GGally) # pair plots
@@ -33,6 +33,12 @@ library(rgl) # 3D plot
 ```
 
 ### Data exploration
+
+#### Definitions
+
+KOI: Kepler Object of Interest
+TCE: Threshold-Crossing Event
+
 
 #### Exploration
 
@@ -69,7 +75,20 @@ We have to remove the unnecessary, unrelevant columns which are :
 - koi_depth_err1: Transit Depth Upper Unc. [ppm] (no information : NA) 
 - koi_depth_err2: Transit Depth Lower Unc. [ppm] (no information : NA) 
 - koi_tce_delivname: TCE Delivery (it's just the delivery type) 
-- 
+- koi_fpflag_nt: Not Transit-Like Flag
+- koi_fpflag_ss: Stellar Eclipse Flag
+- koi_fpflag_co: Centroid Offset Flag
+- koi_fpflag_ec: Ephemeris Match Indicates Contamination Flag
+- koi_tce_plnt_num: TCE Planet Number
+- KIC parameter : 
+  Kepler Input Catalog number assigned to a star that was targeted by the Kepler 
+  Space Telescope mission. It serves as a unique identifier for stars observed by 
+  Kepler, many of which have been found to host exoplanets. 
+  - ra: KIC Right Ascension
+  - dec: KIC Declination
+  - koi_kepmag: Kepler-band
+
+koi_model_snr: Transit Signal-to-Noise ?
 
 We also don't take into account first the upper and lower bound of some features
 We will include them in our analysis later
@@ -81,9 +100,17 @@ We also remove the still unconfirmed candidate exoplanets because we
 only work with the ones whose analyse is finished
 
 ```{r}
+
 column_rm = c("kepid","kepoi_name","kepler_name","koi_pdisposition",
               "koi_score",
               "koi_teq_err1","koi_teq_err2","koi_tce_delivname")
+
+column_rm = c("kepid","kepoi_name","kepler_name","koi_pdisposition",
+              "koi_score",
+              "koi_teq_err1","koi_teq_err2","koi_tce_delivname",
+              "koi_fpflag_nt", "koi_fpflag_ss", "koi_fpflag_co", "koi_fpflag_ec",
+              "ra", "dec", "koi_kepmag", 
+              "koi_tce_plnt_num")
 
 column_incertitudes = c("koi_period_err1", "koi_period_err2", "koi_time0bk_err1", "koi_time0bk_err2", 
                         "koi_impact_err1", "koi_impact_err2", "koi_duration_err1", "koi_duration_err2", 
@@ -192,8 +219,6 @@ for (feature in KOI_table){
 dim(koi_disposition)
 ```
 
-A revoir !
-
 ```{r}
 ### Pairplot for some features
 #pairs(KOI_table)
@@ -202,13 +227,7 @@ A revoir !
 #pairs(selected_features, aes(color="koi_disposition"))
 ```
 
-#### Features distributions
-
-
-
-
-
-##### Normality test
+#### Normality test
 
 ```{r}
 n <- dim(KOI_table)
@@ -216,8 +235,7 @@ p <- dim(KOI_table)
 ```
 
 
-
-##### Standardized data
+#### Standardized data
 
 Boxplots
 
@@ -321,62 +339,232 @@ cumsum(eigenvalues)[20]/tail(cumsum(eigenvalues),1)
 % de la variance totale
 KOI_table_PCA = pca$x[,1:20] dim(KOI_table_PCA)
 
-#### Outliers
+#### Features distributions
 
 ```{r}
+# Loop through each numeric variable and plot a boxplot
+for (feature in names(KOI_table)) {
+  p <- ggplot(KOI_table, aes_string(y = feature)) +
+    geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
+    theme_minimal() +
+    labs(title = paste("Boxplot of", feature), y = feature)
+  
+  print(p)
+}
+```
+We observe a lot of outliers
+
+Example: srad above a threshold => only FP ?
+```{r}
+KOI_table[which(KOI_table$koi_srad>2),]$koi_disposition
+```
+
+#### Outliers
+
+```{r warning=FALSE}
 library(mice)        # Handling missing data
 library(VIM)         # Visualizing missing data
 ```
 
-A revoir !
+After looking at the feature distributions, we saw a lot of outliers.
+
+let's look if the outliers are the same for every features : 
+```{r}
+data = KOI_table
+numeric_cols <- names(data)[sapply(data, is.numeric)]
+outlier_indices_list <- list()
+indexes = 1:7132
+```
 
 ```{r}
-outlier_indices_list <- list()  # Initialize empty list to store indices
-
-for (feature_name in names(KOI_table)) {
-  feature <- KOI_table[[feature_name]]  # Extract column
+for (col in numeric_cols) {
+  x <- data[[col]]
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  IQR_val <- Q3 - Q1
+  lower_bound <- Q1 - 1.5 * IQR_val
+  upper_bound <- Q3 + 1.5 * IQR_val
+  outlier_indices_list[[col]] <- which(x < lower_bound | x > upper_bound)
+  indexes = setdiff(indexes,which(x < lower_bound | x > upper_bound))
   
-  if (is.numeric(feature)) {
-    # Get boxplot stats
-    stats <- boxplot.stats(feature)
-    
-    # Identify indices of outliers
-    outlier_indices <- which(feature %in% stats$out)
-    
-    # Store in list with feature name as key
-    outlier_indices_list[[feature_name]] <- outlier_indices
-    
-    # Plot boxplot with labels
-    boxplot(feature,
-            main = paste("Boxplot of", feature_name),
-            xlab = feature_name)
+}
+#outlier_indices_list
+length(indexes)
+```
+If we remove all outliers we would keep only 2500 datapoints... 
+we shouldn't discard the outliers 
+
+Outliers in the errors : 
+let's see if they are associated with FP if not we should discard them
+```{r}
+error_cols <- c("koi_insol_err1", "koi_slogg_err1","koi_steff_err2","koi_steff_err1") 
+
+for (col in error_cols) {
+  p <- ggplot(data, aes_string(x = col)) +
+    geom_histogram(bins = 50, fill = "skyblue", color = "black") +
+    theme_minimal() +
+    labs(title = paste("Distribution of", col), x = col, y = "Count")
+  print(p)
+}
+```
+
+check correlation with exoplanet : 
+```{r}
+for (col in error_cols) {
+  p <- ggplot(data, aes_string(x = "koi_disposition", y = col)) +
+    geom_boxplot(fill = "lightgreen") +
+    theme_minimal() +
+    labs(title = paste(col, "by Label"), x = "koi_disposition", y = col)
+  print(p)
+}
+```
+we see that higher errors are associated with false positive more often
+We want to find a value to cap the errors, errors extremely high dont bring 
+More info than high errors
+
+```{r}
+sum(data$koi_srad_err1>0.5 & data$koi_disposition==1)
+sum(data$koi_srad_err1>0.5 & data$koi_disposition==0)
+```
+```{r}
+ggplot(data, aes(x = koi_duration_err1, fill = koi_disposition)) +
+  geom_histogram(bins = 100, position = "identity", alpha = 0.5) +
+  labs(title = "Distribution of koi_duration_err1 by disposition") +
+  theme_minimal()
+```
+
+```{r}
+data_uncapped = data
+```
+
+```{r}
+data$koi_duration_err1 <- pmin(data$koi_duration_err1, 0.5)
+```
+
+We repeat for each Feature : 
+```{r}
+distrib_95 <- list()
+features_to_cap = features
+# Loop through each feature
+for (col in features) {
+  val <- quantile(data[[col]], 0.95, na.rm = TRUE)
+  
+  n_1 <- sum(data[[col]] > val & data$koi_disposition == 1, na.rm = TRUE)
+  n_0 <- sum(data[[col]] > val & data$koi_disposition == 0, na.rm = TRUE)
+  prop = max(n_1,n_0)/(n_1+n_0)
+  if(prop<0.7){
+    features_to_cap = setdiff(features_to_cap,col)
   }
+  distrib_95[[col]] <- list(
+    above_95_class1 = n_1,
+    above_95_class0 = n_0,
+    prop_class = prop
+  )
 }
+```
+```{r}
+distrib_95
+length(features_to_cap)
+```
 
+for almost every feature, above a certain threshold there is only FP or Only Confirmed
+=> We can cap the values of all the features that exhibit this pattern : data_partially_capped
+=> we can cap all the features : data_capped
+
+```{r}
+data = data_uncapped
+```
+
+Computation of the partially capped dataset : 
+```{r}
+data_partially_capped = data
+for (col in features_to_cap) {
+  val <- quantile(data[[col]], 0.95, na.rm = TRUE)
+  data_partially_capped[[col]] <- pmin(data[[col]], val)
+}
+```
+
+Computation of the capped dataset : 
+```{r}
+data_capped = data
+for (col in features) {
+  val <- quantile(data[[col]], 0.95, na.rm = TRUE)
+  data_capped[[col]] <- pmin(data[[col]], val)
+}
+```
+
+boxplots of the capped features : 
+```{r}
+numeric_data <- data[sapply(data, is.numeric)]
+# Loop through each numeric variable and plot a boxplot
+for (feature in names(numeric_data)) {
+  p <- ggplot(data_capped, aes_string(y = feature)) +
+    geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
+    theme_minimal() +
+    labs(title = paste("Boxplot of", feature), y = feature)
+  
+  print(p)
+}
+```
+
+##### Limit influence of outliers
+
+test with log(data) : 
+```{r}
+data_log =  log(abs(data[,-c(1)]))
+summary(data_log)
+```
+
+We have problems with negative values
+we can use log(1+x) : 
+```{r}
+data_log =  log1p(abs(data[,-c(1)]))
+
+data_log$koi_disposition = data$koi_disposition
+numeric_data <- data_log[sapply(data_log, is.numeric)]
+
+# Loop through each numeric variable and plot a boxplot
+for (feature in names(numeric_data)) {
+  p <- ggplot(data_log, aes_string(y = feature)) +
+    geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
+    theme_minimal() +
+    labs(title = paste("Boxplot of", feature), y = feature)
+  
+  print(p)
+}
+```
+
+boxplots look better : except koi_slogg => we can cap koi_slogg
+```{r}
+f_to_cap = c("koi_slogg","koi_time0bk_err2","koi_time0bk_err1",
+             "koi_period_err1","koi_period_err2")
+for(col in f_to_cap){
+  x = data_log[[col]]
+  p5 <- quantile(x, 0.05, na.rm = TRUE)
+  p95 <- quantile(x, 0.95, na.rm = TRUE)
+  
+  data_log[[col]] <- pmin(pmax(x, p5), p95)
+
+}
 ```
 
 ```{r}
-# Filter out empty entries (features with no outliers)
-non_empty_lists <- Filter(length, outlier_indices_list)
-# Get the union of all outlier indices
-all_outliers <- unique(unlist(non_empty_lists))
-all_outliers
-dim(all_outliers)
-# We lose too much information by removing the outliers
-# We can do transformations 
+hist(data_log$koi_period_err1, breaks = 100)
 ```
 
+we that this feature ( period error 1 and 2 ) still have a lot of outliers after 
+log transform and capping, we can simply remove them 
+since they are not very discriminative : data_log_f
 ```{r}
-# We can't use log or box-cox transformation because we also have negative values
-# However, we can use Yeo-Johnson transformation
-library(e1071)
-not_skewness_features <- list()
-for (feature in KOI_table) {
-  hist(feature)
-}
+data_log_f = data_log[,-which(colnames(data_log)==c("koi_period_err2","koi_period_err1"))]
+```
 
-#for 
-#skewness(df$feature1)
+We now have the datasets : 
+```{r}
+KOI_table_log
+KOI_table_log_f 
+KOI_table_capped 
+KOI_table_partially_capped
 ```
 
 ### Classification
@@ -606,6 +794,7 @@ rpart.plot(tree_model_wo)
 ```
 
 #### Random forest
+
 ##### with incertitudes
 ```{r}
 library(doParallel)
@@ -687,7 +876,8 @@ accuracy: 99.33%
 
 #### Logistic regression
 
-#### With incertitudes
+##### With incertitudes
+
 Fitting the model on the dataset
 ```{r}
 glm.fit <- glm(koi_disposition~., data = train_set, family=binomial)
@@ -707,6 +897,7 @@ mean(val_pred == actual)
 ```
 
 #### Without incertitudes
+
 Fitting the model on the dataset
 ```{r}
 glm.fit_wo <- glm(koi_disposition~., data = train_set_wo, family=binomial)
