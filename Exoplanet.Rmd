@@ -51,7 +51,7 @@ str(KOI_table_full)
 ```
 
 ```{r}
-summary(KOI_table)
+summary(KOI_table_full)
 ```
 
 ```{r}
@@ -577,13 +577,17 @@ varImp(svm_model_wo)
 #### Decision Tree
 
 #### Random forest
+##### with incertitudes
 ```{r}
 library(doParallel)
 cl <- makePSOCKcluster(detectCores() - 1)
 registerDoParallel(cl)
+library(caret)
+control <- trainControl(method = "cv", number = 5)
 rf_model <- train(koi_disposition ~ .,  data = train_set, method = "rf", trControl = control, metric = 'Accuracy',
-            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set) - 1))), ntree = 500)
+            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set) - 1))), ntree = 100)
 print(rf_model$finalModel)
+stopCluster(cl)
 
 ## get variable importance , and turn into a data frame
 var_imp <- varImp(rf_model, scale = FALSE)$importance
@@ -606,20 +610,54 @@ rf_preds <- factor(rf_preds, levels = levels(val_set$koi_disposition))
 accuracy <- mean(rf_preds == val_set$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds, val_set$koi_disposition))
+
+```
+##### without incertitudes
+```{r}
+library(doParallel)
+cl <- makePSOCKcluster(detectCores() - 1)
+registerDoParallel(cl)
+library(caret)
+control_wo <- trainControl(method = "cv", number = 5)
+rf_model_wo <- train(koi_disposition ~ .,  data = train_set_wo, method = "rf", trControl = control_wo, metric = 'Accuracy',
+            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set_wo) - 1))), ntree = 100)
+print(rf_model_wo$finalModel)
+stopCluster(cl)
+
+## get variable importance , and turn into a data frame
+var_imp_wo <- varImp(rf_model_wo, scale = FALSE)$importance
+var_imp_wo <- data.frame(variable=row.names(var_imp_wo), importance = var_impw0$Overall)
+ggplot(var_imp_wo %>% arrange(importance), aes(x = reorder(variable, importance), y = importance)) + 
+  geom_bar(stat = 'identity') + 
+  coord_flip() +
+  xlab('Variables') +
+  labs(title = 'Random Forest Variable Importance') + 
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 10), 
+    axis.title = element_text(size = 15), 
+    plot.title = element_text(size = 20)
+  )
+
+## generate prediction and print the accuracy
+rf_preds_wo <- predict(rf_model_wo, newdata = val_set_wo)
+rf_preds_wo <- factor(rf_preds_wo, levels = levels(val_set_wo$koi_disposition))
+accuracy <- mean(rf_preds_wo == val_set_wo$koi_disposition)*100
+cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
+print(confusionMatrix(rf_preds_wo, val_set_wo$koi_disposition))
 ```
 We still have a high accuracy but the precision has gone down.
 
 
 #### Logistic regression
 
+#### With incertitudes
 Fitting the model on the dataset
-
 ```{r}
 glm.fit <- glm(koi_disposition~., data = train_set, family=binomial)
 summary(glm.fit)
 ```
 Prediction on the testing set
-
 ```{r}
 # Prediction on validation set
 val_probs <- predict(glm.fit, newdata = val_set, type = "response")
@@ -630,6 +668,25 @@ table(Predicted = val_pred, Actual = val_set$koi_disposition)
 # Accuracy
 mean(val_pred == val_set$koi_disposition)
 ```
+
+#### Without incertitudes
+Fitting the model on the dataset
+```{r}
+glm.fit_wo <- glm(koi_disposition~., data = train_set_wo, family=binomial)
+summary(glm.fit_wo)
+```
+Prediction on the testing set
+```{r}
+# Prediction on validation set
+val_probs_wo <- predict(glm.fit_wo, newdata = val_set_wo, type = "response")
+# Class prediction
+val_pred_wo <- ifelse(val_probs_wo > 0.5, 1, 0)
+# Confusion matrix
+table(Predicted = val_pred_wo, Actual = val_set_wo$koi_disposition)
+# Accuracy
+mean(val_pred_wo == val_set_wo$koi_disposition)
+```
+
 
 #### Comparison
 
