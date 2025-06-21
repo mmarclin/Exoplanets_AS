@@ -368,6 +368,8 @@ library(VIM)         # Visualizing missing data
 
 After looking at the feature distributions, we saw a lot of outliers.
 
+##### Title
+
 let's look if the outliers are the same for every features : 
 ```{r}
 data = KOI_table
@@ -561,10 +563,10 @@ data_log_f = data_log[,-which(colnames(data_log)==c("koi_period_err2","koi_perio
 
 We now have the datasets : 
 ```{r}
-KOI_table_log
-KOI_table_log_f 
-KOI_table_capped 
-KOI_table_partially_capped
+KOI_table_log = data_log
+KOI_table_log_f = data_lof_f
+KOI_table_capped = data_capped
+KOI_table_partially_capped = data_partially_capped
 ```
 
 ### Classification
@@ -1016,8 +1018,15 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = cluster)) +
 
 #### K-means
 
+```{r}
+
+```
 
 #### DBScan
+
+```{r}
+
+```
 
 ### Incertitudes influence
 
