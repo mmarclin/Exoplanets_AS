@@ -51,7 +51,7 @@ str(KOI_table_full)
 ```
 
 ```{r}
-summary(KOI_table)
+summary(KOI_table_full)
 ```
 
 ```{r}
@@ -91,10 +91,13 @@ column_incertitudes = c("koi_period_err1", "koi_period_err2", "koi_time0bk_err1"
                         "koi_insol_err1", "koi_insol_err2", "koi_steff_err1", "koi_steff_err2", 
                         "koi_slogg_err1", "koi_slogg_err2", "koi_srad_err1", "koi_srad_err2")
 
-KOI_table <- KOI_table_full %>% select(-all_of(column_rm))
-KOI_table <- KOI_table %>% filter(koi_disposition != "CANDIDATE")
+# KOI_table <- KOI_table_full %>% select(-all_of(column_rm))
+# KOI_table <- KOI_table %>% filter(koi_disposition != "CANDIDATE")
+# KOI_table_wo_incertitudes <- KOI_table %>% select(-all_of(column_incertitudes))
 
-KOI_table_wo_incertitudes <- KOI_table %>% select(-all_of(column_incertitudes))
+KOI_table <- KOI_table_full %>% dplyr::select(-all_of(column_rm))
+KOI_table <- KOI_table %>% filter(koi_disposition != "CANDIDATE")
+KOI_table_wo_incertitudes <- KOI_table %>% dplyr::select(-all_of(column_incertitudes))
 
 real_columns_to_remove <- c("kepid", "kepoi_name", "kepler_name", "koi_pdisposition", "koi_score", 
                        "koi_fpflag_nt", "koi_fpflag_ss", "koi_fpflag_co", "koi_fpflag_ec", 
@@ -414,8 +417,8 @@ train_set_wo <- KOI_table_wo_incertitudes[train_index, ]
 temp_set_wo  <- KOI_table_wo_incertitudes[-train_index, ]
 
 val_index_wo <- createDataPartition(temp_set$koi_disposition, p = 0.5, list = FALSE)
-val_set_wo <- temp_set_wo[val_index, ]
-test_set_wo <- temp_set_wo[-val_index, ]
+val_set_wo <- temp_set_wo[val_index_wo, ]
+test_set_wo <- temp_set_wo[-val_index_wo, ]
 
 train_set_wo$koi_disposition <- as.factor(train_set_wo$koi_disposition)
 val_set_wo$koi_disposition <- as.factor(val_set_wo$koi_disposition)
@@ -576,16 +579,46 @@ varImp(svm_model_wo)
 ```
 
 #### Decision Tree
+##### With incertitudes
+```{r}
+library(rpart)
+tree_model <- rpart(koi_disposition ~ ., data = train_set, method = "class")
+summary(tree_model_wo)
+tree_pred <- predict(tree_model, newdata = val_set, type = "class")
+table(Predicted = tree_pred, Actual = val_set$koi_disposition)
+```
+```{r}
+library(rpart.plot)
+rpart.plot(tree_model)
+```
+
+##### Without incertitudes
+```{r}
+library(rpart)
+tree_model_wo <- rpart(koi_disposition ~ ., data = train_set_wo, method = "class")
+summary(tree_model_wo)
+tree_pred_wo <- predict(tree_model_wo, newdata = val_set_wo, type = "class")
+table(Predicted = tree_pred_wo, Actual = val_set_wo$koi_disposition)
+```
+```{r}
+library(rpart.plot)
+rpart.plot(tree_model_wo)
+```
 
 #### Random forest
+##### with incertitudes
 ```{r}
 library(doParallel)
 cl <- makePSOCKcluster(detectCores() - 1)
 registerDoParallel(cl)
+library(caret)
+control <- trainControl(method = "cv", number = 5)
 rf_model <- train(koi_disposition ~ .,  data = train_set, method = "rf", trControl = control, metric = 'Accuracy',
-            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set) - 1))), ntree = 500)
+            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set) - 1))), ntree = 100)
 print(rf_model$finalModel)
-
+stopCluster(cl)
+```
+```{r}
 ## get variable importance , and turn into a data frame
 var_imp <- varImp(rf_model, scale = FALSE)$importance
 var_imp <- data.frame(variable = row.names(var_imp), importance = var_imp$Overall)
@@ -600,7 +633,9 @@ ggplot(var_imp %>% arrange(importance), aes(x = reorder(variable, importance), y
     axis.title = element_text(size = 15), 
     plot.title = element_text(size = 20)
   )
-
+```
+koi_fpflag_co (centroid offset flag) is the most important feature, followed by koi_fpflag_ss (stellar eclipse flag)
+```{r}
 ## generate prediction and print the accuracy
 rf_preds <- predict(rf_model, newdata = val_set)
 rf_preds <- factor(rf_preds, levels = levels(val_set$koi_disposition))
@@ -608,19 +643,57 @@ accuracy <- mean(rf_preds == val_set$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds, val_set$koi_disposition))
 ```
-We still have a high accuracy but the precision has gone down.
+accuracy: 98.75%
+
+##### without incertitudes
+```{r}
+library(doParallel)
+cl <- makePSOCKcluster(detectCores() - 1)
+registerDoParallel(cl)
+library(caret)
+control_wo <- trainControl(method = "cv", number = 5)
+rf_model_wo <- train(koi_disposition ~ .,  data = train_set_wo, method = "rf", trControl = control_wo, metric = 'Accuracy',
+            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set_wo) - 1))), ntree = 100)
+print(rf_model_wo$finalModel)
+stopCluster(cl)
+```
+```{r}
+## get variable importance , and turn into a data frame
+var_imp_wo <- varImp(rf_model_wo, scale = FALSE)$importance
+var_imp_wo <- data.frame(variable=row.names(var_imp_wo), importance = var_imp_wo$Overall)
+ggplot(var_imp_wo %>% arrange(importance), aes(x = reorder(variable, importance), y = importance)) + 
+  geom_bar(stat = 'identity') + 
+  coord_flip() +
+  xlab('Variables') +
+  labs(title = 'Random Forest Variable Importance') + 
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 10), 
+    axis.title = element_text(size = 15), 
+    plot.title = element_text(size = 20)
+  )
+```
+koi_fpflag_co (centroid offset flag) is still the most important feature, with a greater weight
+```{r}
+## generate prediction and print the accuracy
+rf_preds_wo <- predict(rf_model_wo, newdata = val_set_wo)
+rf_preds_wo <- factor(rf_preds_wo, levels = levels(val_set_wo$koi_disposition))
+accuracy <- mean(rf_preds_wo == val_set_wo$koi_disposition)*100
+cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
+print(confusionMatrix(rf_preds_wo, val_set_wo$koi_disposition))
+```
+accuracy: 99.33%
 
 
 #### Logistic regression
 
+#### With incertitudes
 Fitting the model on the dataset
-
 ```{r}
 glm.fit <- glm(koi_disposition~., data = train_set, family=binomial)
 summary(glm.fit)
 ```
 Prediction on the testing set
-
 ```{r}
 # Prediction on validation set
 val_probs <- predict(glm.fit, newdata = val_set, type = "response")
@@ -629,8 +702,29 @@ val_pred <- ifelse(val_probs > 0.5, 1, 0)
 # Confusion matrix
 table(Predicted = val_pred, Actual = val_set$koi_disposition)
 # Accuracy
-mean(val_pred == val_set$koi_disposition)
+actual <- ifelse(val_set$koi_disposition == "CONFIRMED", 0, 1)
+mean(val_pred == actual)
 ```
+
+#### Without incertitudes
+Fitting the model on the dataset
+```{r}
+glm.fit_wo <- glm(koi_disposition~., data = train_set_wo, family=binomial)
+summary(glm.fit_wo)
+```
+Prediction on the testing set
+```{r}
+# Prediction on validation set
+val_probs_wo <- predict(glm.fit_wo, newdata = val_set_wo, type = "response")
+# Class prediction
+val_pred_wo <- ifelse(val_probs_wo > 0.5, 1, 0)
+# Confusion matrix
+table(Predicted = val_pred_wo, Actual = val_set_wo$koi_disposition)
+# Accuracy
+actual_wo <- ifelse(val_set_wo$koi_disposition == "CONFIRMED", 0, 1)
+mean(val_pred_wo == actual_wo)
+```
+
 
 #### Comparison
 
