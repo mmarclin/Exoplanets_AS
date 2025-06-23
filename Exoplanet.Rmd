@@ -130,7 +130,6 @@ real_columns_to_remove <- c("kepid", "kepoi_name", "kepler_name", "koi_pdisposit
                        "koi_fpflag_nt", "koi_fpflag_ss", "koi_fpflag_co", "koi_fpflag_ec", 
                        "ra", "dec", "koi_kepmag", "koi_model_snr", "koi_tce_plnt_num", 
                        "koi_tce_delivname")
-
 ```
 
 We now have : two input space: one with and one without the incertitudes
@@ -390,6 +389,7 @@ After looking at the feature boxplots, we saw a lot of potential outliers.
 let's look if the outliers are the same for every features : 
 ```{r}
 data = KOI_table
+data$koi_disposition = as.factor(data$koi_disposition)
 numeric_cols <- names(data)[sapply(data, is.numeric)]
 outlier_indices_list <- list()
 indexes = 1:7132
@@ -457,6 +457,7 @@ ggplot(data, aes(x = koi_duration_err1, fill = koi_disposition)) +
 We repeat for each Feature : 
 ```{r}
 distrib_95 <- list()
+features = numeric_cols
 features_to_cap = features
 # Loop through each feature
 for (col in features) {
@@ -477,7 +478,6 @@ for (col in features) {
 }
 ```
 ```{r}
-distrib_95
 length(features_to_cap)
 ```
 
@@ -567,6 +567,14 @@ KOI_table_log = data_log   # dataset obtained after performing a logtransform of
 # and capping some of those features exhibiting many outliers
 KOI_table_log_f = data_log_f # after removing 2 uninformative features that have many outliers
 KOI_table_capped = data_capped  #  after capping the values of the outliers at the 95% quantile 
+
+
+#### To obtain the datasets wo the incertitudes :
+
+KOI_table_log_wo_incertitudes <- KOI_table_log %>% dplyr::select(-all_of(column_incertitudes))
+
+KOI_table_capped_wo_incertitudes <- KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
+# ... use this line to get any dataset wo incertitudes : KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
 ```
 
 ### Classification
