@@ -123,14 +123,17 @@ data$koi_duration_err1 <- pmin(data$koi_duration_err1, 0.5)
 # we repeat for each Feature : 
 
 distrib_95 <- list()
+features =numeric_cols
 features_to_cap = features
 # Loop through each feature
+proptot = NULL
 for (col in features) {
   val <- quantile(data[[col]], 0.95, na.rm = TRUE)
   
   n_1 <- sum(data[[col]] > val & data$koi_disposition == 1, na.rm = TRUE)
   n_0 <- sum(data[[col]] > val & data$koi_disposition == 0, na.rm = TRUE)
   prop = max(n_1,n_0)/(n_1+n_0)
+  proptot = c(proptot,prop)
   if(prop<0.7){
     features_to_cap = setdiff(features_to_cap,col)
   }
@@ -253,6 +256,7 @@ data_scale = data_log[,-c(34)]
 data_scale = sapply(data_scale, robust_scale)
 #  pca : 
 pca_robust <- prcomp(data_scale, scale. = F)
+plot(pca_robust)
 summary(pca_robust)
 
 
