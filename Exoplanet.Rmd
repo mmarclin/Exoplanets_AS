@@ -118,13 +118,9 @@ column_incertitudes = c("koi_period_err1", "koi_period_err2", "koi_time0bk_err1"
                         "koi_insol_err1", "koi_insol_err2", "koi_steff_err1", "koi_steff_err2", 
                         "koi_slogg_err1", "koi_slogg_err2", "koi_srad_err1", "koi_srad_err2")
 
-# KOI_table <- KOI_table_full %>% select(-all_of(column_rm))
-# KOI_table <- KOI_table %>% filter(koi_disposition != "CANDIDATE")
-# KOI_table_wo_incertitudes <- KOI_table %>% select(-all_of(column_incertitudes))
-
 KOI_table <- KOI_table_full %>% dplyr::select(-all_of(column_rm))
 KOI_table <- KOI_table %>% filter(koi_disposition != "CANDIDATE")
-KOI_table_wo_incertitudes <- KOI_table %>% dplyr::select(-all_of(column_incertitudes))
+KOI_table.wo_incertitudes <- KOI_table %>% dplyr::select(-all_of(column_incertitudes))
 
 real_columns_to_remove <- c("kepid", "kepoi_name", "kepler_name", "koi_pdisposition", "koi_score", 
                        "koi_fpflag_nt", "koi_fpflag_ss", "koi_fpflag_co", "koi_fpflag_ec", 
@@ -141,9 +137,9 @@ names(KOI_table)
 ```
 
 ```{r}
-head(KOI_table_wo_incertitudes)
-dim(KOI_table_wo_incertitudes)
-names(KOI_table_wo_incertitudes)
+head(KOI_table.wo_incertitudes)
+dim(KOI_table.wo_incertitudes)
+names(KOI_table.wo_incertitudes)
 ```
 #### Class encoding
 
@@ -172,9 +168,9 @@ If we remove NA, we have : We lose 653 observations in total
 
 ```{r}
 KOI_table = na.omit(KOI_table)
-KOI_table_wo_incertitudes = na.omit(KOI_table_wo_incertitudes)
+KOI_table.wo_incertitudes = na.omit(KOI_table.wo_incertitudes)
 dim(KOI_table)
-dim(KOI_table_wo_incertitudes)
+dim(KOI_table.wo_incertitudes)
 ```
 
 ### Data analyse
@@ -338,38 +334,19 @@ cumsum(eigenvalues)[20]/tail(cumsum(eigenvalues),1)
 % de la variance totale
 KOI_table_PCA = pca$x[,1:20] dim(KOI_table_PCA)
 
-#### Features distributions
-
-```{r}
-# Loop through each numeric variable and plot a boxplot
-for (feature in names(KOI_table)) {
-  p <- ggplot(KOI_table, aes_string(y = feature)) +
-    geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
-    theme_minimal() +
-    labs(title = paste("Boxplot of", feature), y = feature)
-  
-  print(p)
-}
-```
-We observe a lot of outliers
-
-Example: srad above a threshold => only FP ?
-```{r}
-KOI_table[which(KOI_table$koi_srad>2),]$koi_disposition
-```
 
 #### Outliers Analysis & creation of new datasets 
 
-```{r warning=FALSE}
+```{r message=FALSE, warning=FALSE}
 library(mice)        # Handling missing data
 library(VIM)         # Visualizing missing data
 ```
 
+##### Features distributions
 
 Let's look at the boxplots of each quantitative variable to see if there seem to be outliers : 
 ```{r}
 data = KOI_table
-##
 numeric_data <- data[sapply(data, is.numeric)]
 # Loop through each numeric variable and plot a boxplot
 for (feature in names(numeric_data)) {
@@ -383,6 +360,11 @@ for (feature in names(numeric_data)) {
 ```
 
 After looking at the feature boxplots, we saw a lot of potential outliers.
+
+Example: srad above a threshold => only FP ?
+```{r}
+KOI_table[which(KOI_table$koi_srad>2),]$koi_disposition
+```
 
 ##### What can we say about the outliers : 
 
@@ -560,20 +542,28 @@ since they are not very discriminative : data_log_f
 ```{r}
 data_log_f = data_log[,-c(colnames(data_log)==c("koi_period_err2","koi_period_err1"))]
 ```
+##### Resulting datasets
 
 We now have the datasets : 
 ```{r}
-KOI_table_log = data_log   # dataset obtained after performing a logtransform of the numerical features
+# dataset obtained after performing a logtransform of the numerical features
 # and capping some of those features exhibiting many outliers
-KOI_table_log_f = data_log_f # after removing 2 uninformative features that have many outliers
-KOI_table_capped = data_capped  #  after capping the values of the outliers at the 95% quantile 
+KOI_table.log = data_log   
+dim(KOI_table.log)
 
+# after removing 2 uninformative features that have many outliers
+KOI_table.log_f = data_log_f 
+dim(KOI_table.log_f)
+
+# after capping the values of the outliers at the 95% quantile 
+KOI_table.capped = data_capped
+dim(KOI_table.capped)
 
 #### To obtain the datasets wo the incertitudes :
-
-KOI_table_log_wo_incertitudes <- KOI_table_log %>% dplyr::select(-all_of(column_incertitudes))
-
-KOI_table_capped_wo_incertitudes <- KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
+KOI_table.wo_incertitudes.log <- KOI_table_log %>% dplyr::select(-all_of(column_incertitudes))
+KOI_table.wo_incertitudes.capped <- KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
+dim(KOI_table.wo_incertitudes.log)
+dim(KOI_table.wo_incertitudes.capped)
 # ... use this line to get any dataset wo incertitudes : KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
 ```
 
@@ -590,6 +580,7 @@ We divide the dataset into a :
 - validation set
 - testing set
 
+##### Dataset with all features (with incertitudes)
 ```{r}
 set.seed(123)  # For reproducibility
 
@@ -610,34 +601,63 @@ test_set$koi_disposition <- as.factor(test_set$koi_disposition)
 ```
 
 ```{r}
-train_index_wo <- createDataPartition(KOI_table_wo_incertitudes$koi_disposition, p = 0.7, list = FALSE)
-train_set_wo <- KOI_table_wo_incertitudes[train_index, ]
-temp_set_wo  <- KOI_table_wo_incertitudes[-train_index, ]
-
-val_index_wo <- createDataPartition(temp_set$koi_disposition, p = 0.5, list = FALSE)
-val_set_wo <- temp_set_wo[val_index_wo, ]
-test_set_wo <- temp_set_wo[-val_index_wo, ]
-
-train_set_wo$koi_disposition <- as.factor(train_set_wo$koi_disposition)
-val_set_wo$koi_disposition <- as.factor(val_set_wo$koi_disposition)
-test_set_wo$koi_disposition <- as.factor(test_set_wo$koi_disposition)
-
-```
-
-```{r}
 head(train_set)
 dim(train_set)
 dim(val_set)
 dim(test_set)
 
 control <- trainControl(method = 'cv', number = 5)  # 5-fold CV
+```
+
+##### Dataset without incertitudes
+```{r}
+train_index.wo <- createDataPartition(KOI_table.wo_incertitudes$koi_disposition, p = 0.7, list = FALSE)
+train_set.wo <- KOI_table.wo_incertitudes[train_index.wo, ]
+temp_set.wo  <- KOI_table.wo_incertitudes[-train_index.wo, ]
+
+val_index.wo <- createDataPartition(temp_set$koi_disposition, p = 0.5, list = FALSE)
+val_set.wo <- temp_set.wo[val_index.wo, ]
+test_set.wo <- temp_set.wo[-val_index.wo, ]
+
+train_set.wo$koi_disposition <- as.factor(train_set.wo$koi_disposition)
+val_set.wo$koi_disposition <- as.factor(val_set.wo$koi_disposition)
+test_set.wo$koi_disposition <- as.factor(test_set.wo$koi_disposition)
+
+```
+
+##### Dataset without outliers
+
+```{r}
+# Step 1: Split into train (70%) and temp (40%)
+train_index.log_f <- createDataPartition(KOI_table.log_f$koi_disposition, p = 0.7, list = FALSE)
+train_set.log_f <- KOI_table[train_index.log_f, ]
+temp_set.log_f  <- KOI_table[-train_index.log_f, ]
+
+# Step 2: Split temp into validation and test (15%)
+val_index.log_f <- createDataPartition(temp_set.log_f$koi_disposition, p = 0.5, list = FALSE)
+val_set.log_f <- temp_set[val_index.log_f, ]
+test_set.log_f <- temp_set[-val_index.log_f, ]
+```
+
+```{r}
+train_index.wo <- createDataPartition(KOI_table.wo_incertitudes$koi_disposition, p = 0.7, list = FALSE)
+train_set.wo <- KOI_table.wo_incertitudes[train_index, ]
+temp_set.wo  <- KOI_table.wo_incertitudes[-train_index, ]
+
+val_index.wo <- createDataPartition(temp_set$koi_disposition, p = 0.5, list = FALSE)
+val_set.wo <- temp_set.wo[val_index.wo, ]
+test_set.wo <- temp_set.wo[-val_index.wo, ]
+
+train_set.wo$koi_disposition <- as.factor(train_set.wo$koi_disposition)
+val_set.wo$koi_disposition <- as.factor(val_set.wo$koi_disposition)
+test_set.wo$koi_disposition <- as.factor(test_set.wo$koi_disposition)
 
 ```
 
 #### LDA
 
 LDA can be robust without normality assumption
-```{r warning=FALSE}
+```{r message=FALSE, warning=FALSE}
 library(MASS) 
 ```
 ```{r}
@@ -657,7 +677,7 @@ library(class) # KNN
 ```
 
 ```{r}
-knn_model <- train(
+knn.all <- train(
   koi_disposition ~ ., 
   data = train_set,
   method = "knn",
@@ -668,11 +688,11 @@ knn_model <- train(
 
 Results:
 ```{r}
-print(knn_model)
-plot(knn_model)
+print(knn.all)
+plot(knn.all)
 ```
 ```{r}
-knn_preds <- predict(knn_model, newdata = val_set)
+knn_preds <- predict(knn.all, newdata = val_set)
 confusionMatrix(knn_preds, val_set$koi_disposition)
 ```
 We can see very good prediction score using KNN.
@@ -680,17 +700,17 @@ Given the high dimensional space, we still have enough data to keep the distance
 
 KNN doesn't have internal coefficients (it's non-parametric), so we can't extract direct weights. 
 But we can use model-agnostic methods like:
-```{r}
+```{r warning=FALSE}
 library(vip)
-vip(knn_model)
+vip(knn.all)
 ```
 
 ##### Without incertitudes
 
 ```{r}
-knn_model_wo <- train(
+knn.wo_incertitudes <- train(
   koi_disposition ~ ., 
-  data = train_set_wo,
+  data = train_set.wo,
   method = "knn",
   preProcess = c("center", "scale"),  # normalize predictors
   tuneLength = 10  # try different values of k (number of neighbors)
@@ -699,19 +719,20 @@ knn_model_wo <- train(
 
 Results:
 ```{r}
-print(knn_model_wo)
-plot(knn_model_wo)
+print(knn.wo_incertitudes)
+plot(knn.wo_incertitudes)
 ```
 ```{r}
-knn_preds_wo <- predict(knn_model_wo, newdata = val_set_wo)
-confusionMatrix(knn_preds_wo, val_set_wo$koi_disposition)
+knn_preds_wo <- predict(knn.wo_incertitudes, newdata = val_set.wo)
+confusionMatrix(knn_preds_wo, val_set.wo$koi_disposition)
 ```
 
 
 ```{r}
-vip(knn_model_wo)
+vip(knn.wo_incertitudes)
 ```
 
+##### Without outliers
 
 #### SVM
 
@@ -751,7 +772,7 @@ We begin by training the model on the training set
 ```{r}
 svm_model_wo <- train(
   koi_disposition ~ .,
-  data = train_set_wo,
+  data = train_set.wo,
   method = "svmLinear",
   preProcess = c("center", "scale"),
   trControl = trainControl(method = "cv", number = 5),
@@ -767,8 +788,8 @@ plot(svm_model_wo)  # plots accuracy vs cost (C) values
 We obtain an accuracy of 
 
 ```{r}
-svm_preds_wo <- predict(svm_model_wo, newdata = val_set_wo)
-confusionMatrix(svm_preds_wo, val_set_wo$koi_disposition)
+svm_preds_wo <- predict(svm_model_wo, newdata = val_set.wo)
+confusionMatrix(svm_preds_wo, val_set.wo$koi_disposition)
 ```
 
 
@@ -793,10 +814,10 @@ rpart.plot(tree_model)
 ##### Without incertitudes
 ```{r}
 library(rpart)
-tree_model_wo <- rpart(koi_disposition ~ ., data = train_set_wo, method = "class")
+tree_model_wo <- rpart(koi_disposition ~ ., data = train_set.wo, method = "class")
 summary(tree_model_wo)
-tree_pred_wo <- predict(tree_model_wo, newdata = val_set_wo, type = "class")
-table(Predicted = tree_pred_wo, Actual = val_set_wo$koi_disposition)
+tree_pred_wo <- predict(tree_model_wo, newdata = val_set.wo, type = "class")
+table(Predicted = tree_pred_wo, Actual = val_set.wo$koi_disposition)
 ```
 ```{r}
 library(rpart.plot)
@@ -851,8 +872,8 @@ cl <- makePSOCKcluster(detectCores() - 1)
 registerDoParallel(cl)
 library(caret)
 control_wo <- trainControl(method = "cv", number = 5)
-rf_model_wo <- train(koi_disposition ~ .,  data = train_set_wo, method = "rf", trControl = control_wo, metric = 'Accuracy',
-            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set_wo) - 1))), ntree = 100)
+rf_model_wo <- train(koi_disposition ~ .,  data = train_set.wo, method = "rf", trControl = control_wo, metric = 'Accuracy',
+            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set.wo) - 1))), ntree = 100)
 print(rf_model_wo$finalModel)
 stopCluster(cl)
 ```
@@ -875,11 +896,11 @@ ggplot(var_imp_wo %>% arrange(importance), aes(x = reorder(variable, importance)
 koi_fpflag_co (centroid offset flag) is still the most important feature, with a greater weight
 ```{r}
 ## generate prediction and print the accuracy
-rf_preds_wo <- predict(rf_model_wo, newdata = val_set_wo)
-rf_preds_wo <- factor(rf_preds_wo, levels = levels(val_set_wo$koi_disposition))
-accuracy <- mean(rf_preds_wo == val_set_wo$koi_disposition)*100
+rf_preds_wo <- predict(rf_model_wo, newdata = val_set.wo)
+rf_preds_wo <- factor(rf_preds_wo, levels = levels(val_set.wo$koi_disposition))
+accuracy <- mean(rf_preds_wo == val_set.wo$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
-print(confusionMatrix(rf_preds_wo, val_set_wo$koi_disposition))
+print(confusionMatrix(rf_preds_wo, val_set.wo$koi_disposition))
 ```
 accuracy: 99.33%
 
@@ -906,34 +927,68 @@ actual <- ifelse(val_set$koi_disposition == "CONFIRMED", 0, 1)
 mean(val_pred == actual)
 ```
 
-#### Without incertitudes
+##### Without incertitudes
 
 Fitting the model on the dataset
 ```{r}
-glm.fit_wo <- glm(koi_disposition~., data = train_set_wo, family=binomial)
-summary(glm.fit_wo)
+glm.fit.wo_incertitudes <- glm(koi_disposition~., data = train_set.wo, family=binomial)
+summary(glm.fit.wo_incertitudes)
 ```
 Prediction on the testing set
 ```{r}
 # Prediction on validation set
-val_probs_wo <- predict(glm.fit_wo, newdata = val_set_wo, type = "response")
+val_probs.wo <- predict(glm.fit.wo_incertitudes, newdata = val_set.wo, type = "response")
 # Class prediction
-val_pred_wo <- ifelse(val_probs_wo > 0.5, 1, 0)
+val_pred.wo <- ifelse(val_probs.wo > 0.5, 1, 0)
 # Confusion matrix
-table(Predicted = val_pred_wo, Actual = val_set_wo$koi_disposition)
+table(Predicted = val_pred.wo, Actual = val_set.wo$koi_disposition)
 # Accuracy
-actual_wo <- ifelse(val_set_wo$koi_disposition == "CONFIRMED", 0, 1)
-mean(val_pred_wo == actual_wo)
+actual.wo <- ifelse(val_set.wo$koi_disposition == "CONFIRMED", 0, 1)
+mean(val_pred.wo == actual.wo)
 ```
 
 
-#### Comparison
+##### Without outliers
+
+Fitting the model on the dataset
+```{r}
+glm.fit.log_f <- glm(koi_disposition~., data = train_set.log_f, family=binomial)
+summary(glm.fit.log_f)
+```
+
+Prediction on the testing set
+```{r}
+# Prediction on validation set
+val_probs.log_f <- predict(glm.fit.log_f, newdata = val_set.log_f, type = "response")
+# Class prediction
+val_pred.log_f <- ifelse(val_probs.log_f > 0.5, 1, 0)
+# Confusion matrix
+table(Predicted = val_pred.log_f, Actual = val_set.log_f$koi_disposition)
+# Accuracy
+actual.log_f <- ifelse(val_set.log_f$koi_disposition == "CONFIRMED", 0, 1)
+mean(val_pred.log_f == actual.log_f)
+```
+##### Results logistic regression
+
+```{r}
+table(Predicted = val_pred, Actual = val_set$koi_disposition)
+mean(val_pred == actual)
+
+table(Predicted = val_pred.wo, Actual = val_set.wo$koi_disposition)
+mean(val_pred.wo == actual.wo)
+
+table(Predicted = val_pred.log_f, Actual = val_set.log_f$koi_disposition)
+mean(val_pred.log_f == actual.log_f)
+```
+
+
+#### Comparison between models
 
 ### Clustering
 
 ```{r}
 class <- train_set[1]
-features <- train_set [-1]
+features <- train_set[-1]
 ```
 
 #### Hiearchical clustering
