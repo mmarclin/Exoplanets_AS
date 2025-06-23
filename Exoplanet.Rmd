@@ -359,7 +359,7 @@ Example: srad above a threshold => only FP ?
 KOI_table[which(KOI_table$koi_srad>2),]$koi_disposition
 ```
 
-#### Outliers Analysis and creation of new datasets 
+#### Outliers Analysis & creation of new datasets 
 
 ```{r warning=FALSE}
 library(mice)        # Handling missing data
@@ -385,7 +385,7 @@ for (feature in names(numeric_data)) {
 
 After looking at the feature boxplots, we saw a lot of potential outliers.
 
-# what can we say about the outliers : 
+##### What can we say about the outliers : 
 
 let's look if the outliers are the same for every features : 
 ```{r}
@@ -413,7 +413,9 @@ length(indexes)
 If we remove all outliers we would keep only 2500 datapoints... 
 we shouldn't discard the outliers 
 
-# Outliers in the errors : ( units with very high error on a measurement)
+##### Outliers in the errors
+(units with very high error on a measurement)
+
 let's see if they are associated with FP if not we should discard them
 ```{r}
 error_cols <- c("koi_insol_err1", "koi_slogg_err1","koi_steff_err2","koi_steff_err1") 
