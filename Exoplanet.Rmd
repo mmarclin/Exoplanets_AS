@@ -827,6 +827,8 @@ table(Predicted = tree_pred, Actual = val_set$koi_disposition)
 library(rpart.plot)
 rpart.plot(tree_model)
 ```
+error: 9.8%, accuracy: 90,18%
+important variables: koi_staff_err1, koi_prad, koi_duration_err1
 
 ##### Without incertitudes
 ```{r}
@@ -840,6 +842,9 @@ table(Predicted = tree_pred_wo, Actual = val_set.wo$koi_disposition)
 library(rpart.plot)
 rpart.plot(tree_model_wo)
 ```
+error: 14.2%, accuracy: 85,98%
+important variables: koi_prad, koi_model_snr
+
 ##### With data_log_f
 ```{r}
 tree_model_log_f <- rpart(koi_disposition ~ ., data = train_set.log_f, method = "class")
@@ -850,6 +855,24 @@ table(Predicted = tree_pred_log_f, Actual = val_set.log_f$koi_disposition)
 ```{r}
 rpart.plot(tree_model_log_f)
 ```
+error: 8,59%, accuracy: 91,40%
+important variables: koi_staff_err1, koi_prad
+
+#### Accuracy and comparison of the decision trees
+```{r}
+# Accuracy 
+acc_tree <- mean(tree_pred == val_set$koi_disposition)
+acc_tree_wo <- mean(tree_pred_wo == val_set.wo$koi_disposition)
+acc_tree_log_f <- mean(tree_pred_log_f == val_set.log_f$koi_disposition)
+ 
+# comparison table
+accuracy_table <- data.frame(
+  model = c("with incertitudes", "without incertitudes", "with data_log_f"),
+  accuracy = c(acc_tree, acc_tree_wo, acc_tree_log_f)
+)
+print(accuracy_table)
+```
+
 
 
 #### Random forest
