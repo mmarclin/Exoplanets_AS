@@ -771,7 +771,6 @@ svm_model <- train(
 ```{r}
 print(svm_model)
 plot(svm_model)  # plots accuracy vs cost (C) values
-
 ```
 ```{r}
 svm_preds <- predict(svm_model, newdata = val_set)
@@ -782,6 +781,48 @@ We have a little better accuracy compared to KNN for the validation set: 0.9942 
 ```{r}
 varImp(svm_model)
 ```
+
+```{r warning=FALSE}
+library(caret)
+```
+```{r}
+ctrl <- trainControl(
+  method = "cv",
+  number = 5,
+  sampling = "up",  # or "down"
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary
+)
+
+svm_up <- train(
+  koi_disposition ~ ., 
+  data = train_set,
+  method = "svmLinear",
+  preProcess = c("center", "scale"),
+  trControl = ctrl,
+  metric = "ROC"
+)
+
+print(svm_up)
+plot(svm_up)
+```
+```{r}
+svm_preds <- predict(svm_model, newdata = val_set)
+confusionMatrix(svm_preds, val_set$koi_disposition)
+```
+
+Probabilites + ROC curve
+```{r}
+library(pROC)
+```
+```{r}
+val_probs <- predict(svm_up, newdata = val_set, type = "prob")
+roc_obj <- roc(val_set$koi_disposition, val_probs[, "1"])
+plot(roc_obj)
+auc(roc_obj)
+```
+
+
 
 ##### Without incertitudes
 
