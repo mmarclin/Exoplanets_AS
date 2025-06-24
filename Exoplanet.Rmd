@@ -577,8 +577,8 @@ KOI_table.capped = data_capped
 dim(KOI_table.capped)
 
 #### To obtain the datasets wo the incertitudes :
-KOI_table.wo_incertitudes.log <- KOI_table_log %>% dplyr::select(-all_of(column_incertitudes))
-KOI_table.wo_incertitudes.capped <- KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
+KOI_table.wo_incertitudes.log <- KOI_table.log %>% dplyr::select(-all_of(column_incertitudes))
+KOI_table.wo_incertitudes.capped <- KOI_table.capped %>% dplyr::select(-all_of(column_incertitudes))
 dim(KOI_table.wo_incertitudes.log)
 dim(KOI_table.wo_incertitudes.capped)
 # ... use this line to get any dataset wo incertitudes : KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
@@ -819,7 +819,7 @@ varImp(svm_model_wo)
 ```{r}
 library(rpart)
 tree_model <- rpart(koi_disposition ~ ., data = train_set, method = "class")
-summary(tree_model_wo)
+summary(tree_model)
 tree_pred <- predict(tree_model, newdata = val_set, type = "class")
 table(Predicted = tree_pred, Actual = val_set$koi_disposition)
 ```
@@ -921,7 +921,7 @@ ggplot(var_imp_wo %>% arrange(importance), aes(x = reorder(variable, importance)
     plot.title = element_text(size = 20)
   )
 ```
-koi_fpflag_co (centroid offset flag) is still the most important feature, with a greater weight
+koi_prad is the most important feature, followed by koi_model_snr
 ```{r}
 ## generate prediction and print the accuracy
 rf_preds_wo <- predict(rf_model_wo, newdata = val_set.wo)
@@ -930,7 +930,7 @@ accuracy <- mean(rf_preds_wo == val_set.wo$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds_wo, val_set.wo$koi_disposition))
 ```
-accuracy: 99.33%
+accuracy: 90.84%
 
 ##### without data_log_f
 ```{r}
