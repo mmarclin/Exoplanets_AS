@@ -577,14 +577,71 @@ KOI_table.capped = data_capped
 dim(KOI_table.capped)
 
 #### To obtain the datasets wo the incertitudes :
-KOI_table.wo_incertitudes.log <- KOI_table_log %>% dplyr::select(-all_of(column_incertitudes))
-KOI_table.wo_incertitudes.capped <- KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
+KOI_table.wo_incertitudes.log <- KOI_table.log %>% dplyr::select(-all_of(column_incertitudes))
+KOI_table.wo_incertitudes.capped <- KOI_table.capped %>% dplyr::select(-all_of(column_incertitudes))
 dim(KOI_table.wo_incertitudes.log)
 dim(KOI_table.wo_incertitudes.capped)
 # ... use this line to get any dataset wo incertitudes : KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
 ```
 
 ### Classification
+
+#### Weights for each observations 
+
+
+For each observation we compute the weight according to the errors for each feature. 
+
+For each feature the associated score is computed as : 
+(abs(err1)+abs(ee2))/(2*abs(value of the feature))
+
+then we average this score over each features. 
+We obtain the final weight of an observation as : 
+1/(1+avg(score per feature))
+
+the higher the errors the lower the weight
+```{r}
+# List of main features and their corresponding error columns
+features <- c("koi_period", "koi_time0bk", "koi_impact", "koi_duration", "koi_depth", 
+              "koi_prad", "koi_insol", "koi_steff", "koi_slogg", "koi_srad")
+
+upper_errs <- paste0(features, "_err1")
+lower_errs <- paste0(features, "_err2")
+
+# Function to compute relative uncertainty per feature for all rows
+relative_uncertainty <- function(value, err1, err2) {
+  abs_err_mean <- (abs(err1) + abs(err2)) / 2
+  rel_unc <- abs_err_mean / abs(value)
+  return(rel_unc)
+}
+
+# Initialize a matrix to store relative uncertainties for each feature
+rel_unc_mat <- matrix(NA, nrow = nrow(KOI_table_clean), ncol = length(features))
+colnames(rel_unc_mat) <- features
+
+# Compute relative uncertainties for each feature
+for (i in seq_along(features)) {
+  val <- KOI_table_clean[[features[i]]]
+  err1 <- KOI_table_clean[[upper_errs[i]]]
+  err2 <- KOI_table_clean[[lower_errs[i]]]
+  
+  # Avoid division by zero or NA by replacing zeros with small value or NA handling
+  val[val == 0] <- NA
+  
+  rel_unc_mat[, i] <- relative_uncertainty(val, err1, err2)
+}
+
+# Aggregate uncertainty across features per observation (mean of available relative uncertainties)
+total_uncertainty <- apply(rel_unc_mat, 1, function(x) mean(x, na.rm = TRUE))
+
+# Compute weights: higher weight for lower uncertainty
+weights <- 1 / (1 + total_uncertainty)
+# Normalize weights between 0 and 1
+weights_norm <- weights / max(weights, na.rm = TRUE)
+length(weights_norm)
+```
+
+The weights are stored in the vector weights_norm, lower weight for more uncertain observations. (vector of size 7132)
+
 
 #### Split the data
 
@@ -654,34 +711,184 @@ temp_set.log_f  <- KOI_table[-train_index.log_f, ]
 val_index.log_f <- createDataPartition(temp_set.log_f$koi_disposition, p = 0.5, list = FALSE)
 val_set.log_f <- temp_set[val_index.log_f, ]
 test_set.log_f <- temp_set[-val_index.log_f, ]
+
+train_set.log_f$koi_disposition <- as.factor(train_set.log_f$koi_disposition)
+val_set.log_f$koi_disposition <- as.factor(val_set.log_f$koi_disposition)
+test_set.log_f$koi_disposition <- as.factor(test_set.log_f$koi_disposition)
 ```
 
+##### Dataset without outliers and incertitudes
+
 ```{r}
-train_index.wo <- createDataPartition(KOI_table.wo_incertitudes$koi_disposition, p = 0.7, list = FALSE)
-train_set.wo <- KOI_table.wo_incertitudes[train_index, ]
-temp_set.wo  <- KOI_table.wo_incertitudes[-train_index, ]
+train_index.wo_log <- createDataPartition(KOI_table.wo_incertitudes.log$koi_disposition, p = 0.7, list = FALSE)
+train_set.wo_log <- KOI_table.wo_incertitudes[train_index, ]
+temp_set.wo_log  <- KOI_table.wo_incertitudes[-train_index, ]
 
-val_index.wo <- createDataPartition(temp_set$koi_disposition, p = 0.5, list = FALSE)
-val_set.wo <- temp_set.wo[val_index.wo, ]
-test_set.wo <- temp_set.wo[-val_index.wo, ]
+val_index.wo_log <- createDataPartition(temp_set.wo_log$koi_disposition, p = 0.5, list = FALSE)
+val_set.wo_log <- temp_set.wo_log[val_index.wo, ]
+test_set.wo_log <- temp_set.wo_log[-val_index.wo, ]
 
-train_set.wo$koi_disposition <- as.factor(train_set.wo$koi_disposition)
-val_set.wo$koi_disposition <- as.factor(val_set.wo$koi_disposition)
-test_set.wo$koi_disposition <- as.factor(test_set.wo$koi_disposition)
+train_set.wo_log$koi_disposition <- as.factor(train_set.wo_log$koi_disposition)
+val_set.wo_log$koi_disposition <- as.factor(val_set.wo_log$koi_disposition)
+test_set.wo_log$koi_disposition <- as.factor(test_set.wo_log$koi_disposition)
+
+# LOG transformé sans incertitudes
+train_index.log <- createDataPartition(KOI_table.wo_incertitudes.log$koi_disposition, p = 0.7, list = FALSE)
+train_set.log <- KOI_table.wo_incertitudes.log[train_index.log, ]
+temp_set.log  <- KOI_table.wo_incertitudes.log[-train_index.log, ]
+
+val_index.log <- createDataPartition(temp_set.log$koi_disposition, p = 0.5, list = FALSE)
+val_set.log <- temp_set.log[val_index.log, ]
+test_set.log <- temp_set.log[-val_index.log, ]
+
+train_set.log$koi_disposition <- as.factor(train_set.log$koi_disposition)
+val_set.log$koi_disposition <- as.factor(val_set.log$koi_disposition)
+test_set.log$koi_disposition <- as.factor(test_set.log$koi_disposition)
 
 ```
 
 #### LDA
 
 LDA can be robust without normality assumption
+## 1)with outliers
+## 1)a) with incertitudes
+
+```{r}
+train_set_wo_cluster <- train_set[, !(names(train_set) %in% "cluster")]
+test_set_wo_cluster <- test_set[, !(names(test_set) %in% "cluster")]
+
+lda_model1 <- lda(koi_disposition ~ ., data = train_set_wo_cluster)
+lda_pred1 <- predict(lda_model, newdata = test_set_wo_cluster)
+
+
+# Evaluate the model using a confusion matrix
+confusionMatrix(lda_pred1$class, test_set_wo_cluster$koi_disposition)
+
+
+# 2. Project all test set observations onto the discriminant axes
+lda_proj1 <- predict(lda_model, newdata = test_set)
+
+# 3. Create a data frame for ggplot
+lda_df1 <- data.frame(lda_proj1$x)
+lda_df1$koi_disposition <- test_set$koi_disposition
+
+library(ggplot2)
+
+# Plot the distribution of the classes along the first discriminant axis
+ggplot(lda_df1, aes(x = LD1, fill = koi_disposition)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution of the classes along LD1",
+       x = "Discriminant 1 (LD1)",
+       y = "Density") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1")
+
+```
+## 1)b) without incertitudes
+
 ```{r message=FALSE, warning=FALSE}
 library(MASS) 
-```
-```{r}
-class <- train_set.log_f[1]
-features <- train_set.log_f[-1]
+library(caret)
 
-KOI_table.lda <- lda(as.matrix(features), class)
+# Train the model on the training set
+lda_model2 <- lda(koi_disposition ~ ., data = train_set.wo)
+
+# Predict directly on the test set
+lda_pred2 <- predict(lda_model2, newdata = test_set.wo)
+
+# Evaluate the model using a confusion matrix
+confusionMatrix(lda_pred2$class, test_set.wo$koi_disposition)
+
+# 1. Train the LDA model on the training set
+lda_model2 <- lda(koi_disposition ~ ., data = train_set.wo)
+
+# 2. Project all test set observations onto the discriminant axes
+lda_proj2 <- predict(lda_model2, newdata = test_set.wo)
+
+# 3. Create a data frame for ggplot
+lda_df2 <- data.frame(lda_proj2$x)
+lda_df2$koi_disposition <- test_set.wo$koi_disposition
+
+library(ggplot2)
+
+# Plot the distribution of the classes along the first discriminant axis
+ggplot(lda_df2, aes(x = LD1, fill = koi_disposition)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution of the classes along LD1",
+       x = "Discriminant 1 (LD1)",
+       y = "Density") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1")
+
+
+```
+##2)without ouliers
+## 2)a) with icertitudes
+```{r}
+library(MASS)
+library(caret)
+library(ggplot2)
+library(RColorBrewer)
+
+run_lda_analysis <- function(train_set, test_set, title = "LDA Projection") {
+  # S'assurer que le facteur est bien défini
+  train_set$koi_disposition <- as.factor(train_set$koi_disposition)
+  test_set$koi_disposition <- as.factor(test_set$koi_disposition)
+  
+  # Entraînement
+  lda_model <- lda(koi_disposition ~ ., data = train_set)
+  
+  # Prédiction
+  lda_pred <- predict(lda_model, newdata = test_set)
+  
+  # Confusion matrix avec gestion des niveaux
+  cat("\n=== Confusion Matrix:", title, "===\n")
+  print(confusionMatrix(
+    factor(lda_pred$class, levels = levels(train_set$koi_disposition)),
+    factor(test_set$koi_disposition, levels = levels(train_set$koi_disposition))
+  ))
+  
+  # Projection pour ggplot
+  lda_df <- data.frame(lda_pred$x)
+  lda_df$koi_disposition <- test_set$koi_disposition
+  
+  # Graphique
+  p <- ggplot(lda_df, aes(x = LD1, fill = koi_disposition)) +
+    geom_density(alpha = 0.5) +
+    labs(title = title,
+         x = "LD1", y = "Density") +
+    theme_minimal() +
+    scale_fill_brewer(palette = "Set1")
+  
+  print(p)
+}
+
+# Jeu sans incertitudes et sans outliers (log_f)
+train_set.log_f <- KOI_table.log_f[train_index.log_f, ]
+temp_set.log_f  <- KOI_table.log_f[-train_index.log_f, ]
+
+val_index.log_f <- createDataPartition(temp_set.log_f$koi_disposition, p = 0.5, list = FALSE)
+val_set.log_f <- temp_set.log_f[val_index.log_f, ]
+test_set.log_f <- temp_set.log_f[-val_index.log_f, ]
+
+# Jeu log transformé sans incertitudes
+train_set.log <- KOI_table.wo_incertitudes.log[train_index.log, ]
+temp_set.log  <- KOI_table.wo_incertitudes.log[-train_index.log, ]
+
+val_index.log <- createDataPartition(temp_set.log$koi_disposition, p = 0.5, list = FALSE)
+val_set.log <- temp_set.log[val_index.log, ]
+test_set.log <- temp_set.log[-val_index.log, ]
+
+run_lda_analysis(train_set.log_f, test_set.log_f, "LDA Projection - log_f (no outliers)")
+
+
+```
+
+## 2)b) without incertitudes
+
+```{r}
+run_lda_analysis(train_set.log, test_set.log, "LDA Projection - log (no uncertainties)")
+
 ```
 
 #### KNN
@@ -860,7 +1067,7 @@ varImp(svm_model_wo)
 ```{r}
 library(rpart)
 tree_model <- rpart(koi_disposition ~ ., data = train_set, method = "class")
-summary(tree_model_wo)
+summary(tree_model)
 tree_pred <- predict(tree_model, newdata = val_set, type = "class")
 table(Predicted = tree_pred, Actual = val_set$koi_disposition)
 ```
@@ -868,6 +1075,8 @@ table(Predicted = tree_pred, Actual = val_set$koi_disposition)
 library(rpart.plot)
 rpart.plot(tree_model)
 ```
+error: 9.8%, accuracy: 90,18%
+important variables: koi_staff_err1, koi_prad, koi_duration_err1
 
 ##### Without incertitudes
 ```{r}
@@ -881,6 +1090,9 @@ table(Predicted = tree_pred_wo, Actual = val_set.wo$koi_disposition)
 library(rpart.plot)
 rpart.plot(tree_model_wo)
 ```
+error: 14.2%, accuracy: 85,98%
+important variables: koi_prad, koi_model_snr
+
 ##### With data_log_f
 ```{r}
 tree_model_log_f <- rpart(koi_disposition ~ ., data = train_set.log_f, method = "class")
@@ -891,7 +1103,73 @@ table(Predicted = tree_pred_log_f, Actual = val_set.log_f$koi_disposition)
 ```{r}
 rpart.plot(tree_model_log_f)
 ```
+error: 8,59%, accuracy: 91,40%
+important variables: koi_staff_err1, koi_prad
 
+##### Without incertitudes_data_log
+```{r}
+tree_model_wo_log <- rpart(koi_disposition ~ ., data = train_set.wo_log, method = "class")
+summary(tree_model_wo_log)
+tree_pred_wo_log <- predict(tree_model_wo_log, newdata = val_set.wo_log, type = "class")
+table(Predicted = tree_pred_wo_log, Actual = val_set.wo_log$koi_disposition)
+```
+```{r}
+rpart.plot(tree_model_wo_log)
+```
+error: 14,00%, accuracy: 85,98%
+important variables: koi_prad, koi_model_snr
+
+#### Accuracy and comparison of the decision trees
+```{r}
+# Accuracy 
+acc_tree <- mean(tree_pred == val_set$koi_disposition)
+acc_tree_wo <- mean(tree_pred_wo == val_set.wo$koi_disposition)
+acc_tree_log_f <- mean(tree_pred_log_f == val_set.log_f$koi_disposition)
+acc_tree_wo_log <- mean(tree_pred_wo_log == val_set.wo_log$koi_disposition)
+ 
+# comparison table
+accuracy_table <- data.frame(
+  model = c("with incertitudes", "without incertitudes", "with data_log_f", "with incertitudes__log"),
+  accuracy = c(acc_tree, acc_tree_wo, acc_tree_log_f, acc_tree_wo_log)
+)
+print(accuracy_table)
+```
+
+```{r}
+library(caret)
+
+# Calcola confusion matrix e metriche per ogni modello
+cm1 <- confusionMatrix(tree_pred,        reference = val_set$koi_disposition)
+cm2 <- confusionMatrix(tree_pred_wo,     reference = val_set.wo$koi_disposition)
+cm3 <- confusionMatrix(tree_pred_log_f,  reference = val_set.log_f$koi_disposition)
+cm4 <- confusionMatrix(tree_pred_wo_log, reference = val_set.wo_log$koi_disposition)
+
+# Estrai balanced accuracy, precision, recall, F1
+get_metrics <- function(cm) {
+  c(
+    Accuracy = cm$overall["Accuracy"],
+    Balanced_Accuracy = cm$byClass["Balanced Accuracy"],
+    Precision = cm$byClass["Precision"],
+    Recall = cm$byClass["Recall"],
+    F1 = cm$byClass["F1"]
+  )
+}
+
+metrics1 <- get_metrics(cm1)
+metrics2 <- get_metrics(cm2)
+metrics3 <- get_metrics(cm3)
+metrics4 <- get_metrics(cm4)
+
+comparison_table <- data.frame(
+  Model = c("with incertitudes", "without incertitudes", "with data_log_f", "with incertitudes_log"),
+  Accuracy = c(metrics1["Accuracy.Accuracy"], metrics2["Accuracy.Accuracy"], metrics3["Accuracy.Accuracy"], metrics4["Accuracy.Accuracy"]),
+  Balanced_Accuracy = c(metrics1["Balanced_Accuracy.Balanced Accuracy"], metrics2["Balanced_Accuracy.Balanced Accuracy"], metrics3["Balanced_Accuracy.Balanced Accuracy"], metrics4["Balanced_Accuracy.Balanced Accuracy"]),
+  Precision = c(metrics1["Precision.Precision"], metrics2["Precision.Precision"], metrics3["Precision.Precision"], metrics4["Precision.Precision"]),
+  Recall = c(metrics1["Recall.Recall"], metrics2["Recall.Recall"], metrics3["Recall.Recall"], metrics4["Recall.Recall"]),
+  F1 = c(metrics1["F1.F1"], metrics2["F1.F1"], metrics3["F1.F1"], metrics4["F1.F1"])
+)
+print(comparison_table)
+```
 
 #### Random forest
 
@@ -962,7 +1240,7 @@ ggplot(var_imp_wo %>% arrange(importance), aes(x = reorder(variable, importance)
     plot.title = element_text(size = 20)
   )
 ```
-koi_fpflag_co (centroid offset flag) is still the most important feature, with a greater weight
+koi_prad is the most important feature, followed by koi_model_snr
 ```{r}
 ## generate prediction and print the accuracy
 rf_preds_wo <- predict(rf_model_wo, newdata = val_set.wo)
@@ -971,7 +1249,7 @@ accuracy <- mean(rf_preds_wo == val_set.wo$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds_wo, val_set.wo$koi_disposition))
 ```
-accuracy: 99.33%
+accuracy: 90.84%
 
 ##### without data_log_f
 ```{r}
@@ -1011,7 +1289,43 @@ cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds_log_f, val_set.log_f$koi_disposition))
 ```
 
-
+##### without incertitudes_data_log
+```{r}
+library(doParallel)
+cl <- makePSOCKcluster(detectCores() - 1)
+registerDoParallel(cl)
+library(caret)
+control_wo_log <- trainControl(method = "cv", number = 5)
+rf_model_wo_log <- train(koi_disposition ~ .,  data = train_set.wo_log, method = "rf", trControl = control_log_f, metric = 'Accuracy',
+            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set.wo_log) - 1))), ntree = 100)
+print(rf_model_wo_log$finalModel)
+stopCluster(cl)
+```
+```{r}
+## get variable importance , and turn into a data frame
+var_imp_wo_log <- varImp(rf_model_wo_log, scale = FALSE)$importance
+var_imp_wo_log <- data.frame(variable=row.names(var_imp_wo_log), importance = var_imp_wo_log$Overall)
+ggplot(var_imp_wo_log %>% arrange(importance), aes(x = reorder(variable, importance), y = importance)) + 
+  geom_bar(stat = 'identity') + 
+  coord_flip() +
+  xlab('Variables') +
+  labs(title = 'Random Forest Variable Importance') + 
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 10), 
+    axis.title = element_text(size = 15), 
+    plot.title = element_text(size = 20)
+  )
+```
+koi_prad is the most important feature, followed by koi_model_snr
+```{r}
+rf_preds_wo_log <- predict(rf_model_wo_log, newdata = val_set.wo_log)
+rf_preds_wo_log <- factor(rf_preds_wo_log, levels = levels(val_set.wo_log$koi_disposition))
+accuracy <- mean(rf_preds_wo_log == val_set.wo_log$koi_disposition) * 100
+cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
+print(confusionMatrix(rf_preds_wo_log, val_set.wo_log$koi_disposition))
+```
+accuracy: 90.56%
 #### Logistic regression
 
 ##### With incertitudes
