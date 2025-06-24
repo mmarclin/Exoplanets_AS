@@ -840,6 +840,17 @@ table(Predicted = tree_pred_wo, Actual = val_set.wo$koi_disposition)
 library(rpart.plot)
 rpart.plot(tree_model_wo)
 ```
+##### With data_log_f
+```{r}
+tree_model_log_f <- rpart(koi_disposition ~ ., data = train_set.log_f, method = "class")
+summary(tree_model_log_f)
+tree_pred_log_f <- predict(tree_model_log_f, newdata = val_set.log_f, type = "class")
+table(Predicted = tree_pred_log_f, Actual = val_set.log_f$koi_disposition)
+```
+```{r}
+rpart.plot(tree_model_log_f)
+```
+
 
 #### Random forest
 
@@ -920,6 +931,44 @@ cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds_wo, val_set.wo$koi_disposition))
 ```
 accuracy: 99.33%
+
+##### without data_log_f
+```{r}
+library(doParallel)
+cl <- makePSOCKcluster(detectCores() - 1)
+registerDoParallel(cl)
+library(caret)
+control_log_f <- trainControl(method = "cv", number = 5)
+rf_model_log_f <- train(koi_disposition ~ .,  data = train_set.log_f, method = "rf", trControl = control_log_f, metric = 'Accuracy',
+            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set.log_f) - 1))), ntree = 100)
+print(rf_model_log_f$finalModel)
+stopCluster(cl)
+```
+```{r}
+## get variable importance , and turn into a data frame
+var_imp_log_f <- varImp(rf_model_log_f, scale = FALSE)$importance
+var_imp_log_f <- data.frame(variable=row.names(var_imp_log_f), importance = var_imp_log_f$Overall)
+ggplot(var_imp_log_f %>% arrange(importance), aes(x = reorder(variable, importance), y = importance)) + 
+  geom_bar(stat = 'identity') + 
+  coord_flip() +
+  xlab('Variables') +
+  labs(title = 'Random Forest Variable Importance') + 
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 10), 
+    axis.title = element_text(size = 15), 
+    plot.title = element_text(size = 20)
+  )
+```
+koi_fpflag_co (centroid offset flag) is still the most important feature, with a greater weight
+```{r}
+## generate prediction and print the accuracy
+rf_preds_log_f <- predict(rf_model_log_f, newdata = val_set.log_f)
+rf_preds_log_f <- factor(rf_model_log_f, levels = levels(val_set.log_f$koi_disposition))
+accuracy <- mean(rf_preds_log_f == val_set.log_f$koi_disposition)*100
+cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
+print(confusionMatrix(rf_preds_log_f, val_set.log_f$koi_disposition))
+```
 
 
 #### Logistic regression
