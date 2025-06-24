@@ -150,6 +150,10 @@ exoplanet
 KOI_table$koi_disposition <- ifelse(KOI_table$koi_disposition == "CONFIRMED", 1, 0)
 unique(KOI_table$koi_disposition)
 ```
+```{r}
+KOI_table.wo_incertitudes$koi_disposition <- ifelse(KOI_table.wo_incertitudes$koi_disposition == "CONFIRMED", 1, 0)
+unique(KOI_table.wo_incertitudes$koi_disposition)
+```
 
 ### Data cleaning
 
@@ -175,16 +179,18 @@ dim(KOI_table.wo_incertitudes)
 
 ### Data analyse
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 attach(KOI_table)
 ```
 
 #### Class distribution
 
-We can look for class imbalance : Class imbalance can biased the model
-towards the majority class - it can lead to poor recall or precision on
-the minority class - it can draw boundaries too close to the minority
-class (Log Reg, SVM)
+##### Class imbalance 
+
+We can look for class imbalance : 
+Class imbalance can biased the model towards the majority class 
+- it can lead to poor recall or precision on the minority class 
+- it can draw boundaries too close to the minority
 
 ```{r}
 # Create a frequency table
@@ -192,6 +198,7 @@ table_koi <- table(KOI_table[["koi_disposition"]])
 table_koi
 # Convert to proportions
 prop_koi <- prop.table(table_koi)
+prop_koi
 # Create a bar plot
 barplot(prop_koi,
         col = rainbow(length(prop_koi)),  # Assign colors dynamically
@@ -200,11 +207,8 @@ barplot(prop_koi,
         ylab = "Proportion",
         xlab = "KOI Disposition")
 ```
-
 In our case, we can see imbalance between classes that we can handle
 with for example : - Oversampling (SMOTE) or Undersampling
-
-A revoir !
 
 ```{r small_plot, fig.height=3, fig.width=5, message=FALSE}
 # Per class
@@ -221,6 +225,19 @@ dim(koi_disposition)
 #ggpairs(selected_features, aes(color = "koi_disposition"))
 #pairs(selected_features, aes(color="koi_disposition"))
 ```
+
+##### Solutions 
+
+We have a moderate class imbalance : 
+- class 0 (false positive) : 0.618%
+- class 1 (true exoplanets) : 0.382%
+
+We can use :
+- up/down sampling: 
+  Randomly duplicate examples from the minority class until both classes are equally represented
+  Or Randomly remove examples from the majority class to match the minority.
+- use class weights (for logistic regression or SVM):
+  Assigns higher cost (importance) to errors made on the minority class.
 
 #### Normality test
 
@@ -661,8 +678,8 @@ LDA can be robust without normality assumption
 library(MASS) 
 ```
 ```{r}
-class <- train_set[1]
-features <- train_set[-1]
+class <- train_set.log_f[1]
+features <- train_set.log_f[-1]
 
 KOI_table.lda <- lda(as.matrix(features), class)
 ```
@@ -909,6 +926,8 @@ accuracy: 99.33%
 
 ##### With incertitudes
 
+###### Without class weights
+
 Fitting the model on the dataset
 ```{r}
 glm.fit <- glm(koi_disposition~., data = train_set, family=binomial)
@@ -923,11 +942,51 @@ val_pred <- ifelse(val_probs > 0.5, 1, 0)
 # Confusion matrix
 table(Predicted = val_pred, Actual = val_set$koi_disposition)
 # Accuracy
-actual <- ifelse(val_set$koi_disposition == "CONFIRMED", 0, 1)
+actual <- ifelse(val_set$koi_disposition == 0, 0, 1)
+mean(val_pred == actual)
+```
+```{r}
+library(pROC)
+```
+```{r}
+roc_obj <- roc(val_set$koi_disposition, val_probs)
+auc(roc_obj)
+plot(roc_obj)
+```
+
+###### With class weights
+
+Assign weights inversely proportional to class frequencies
+```{r}
+prop.table(table(train_set$koi_disposition))
+class_weights <- ifelse(train_set$koi_disposition == 0,
+                        1 / prop.table(table(train_set$koi_disposition))[1],
+                        1 / prop.table(table(train_set$koi_disposition))[2])
+```
+
+```{r}
+glm_weighted.fit <- glm(koi_disposition~., 
+                        data = train_set, 
+                        family=binomial,
+                        weights = class_weights)
+summary(glm_weighted.fit)
+```
+```{r}
+val_probs_weighted <- predict(glm_weighted.fit, newdata = val_set, type = "response")
+# Class prediction
+val_pred_weighted <- ifelse(val_probs_weighted > 0.5, 1, 0)
+# Confusion matrix
+table(Predicted = val_pred_weighted, Actual = val_set$koi_disposition)
+table(Predicted = val_pred, Actual = val_set$koi_disposition)
+# Accuracy
+actual_weighted <- ifelse(val_set$koi_disposition == 0, 0, 1)
+mean(val_pred == actual_weighted)
 mean(val_pred == actual)
 ```
 
 ##### Without incertitudes
+
+###### Without class weights
 
 Fitting the model on the dataset
 ```{r}
@@ -943,13 +1002,41 @@ val_pred.wo <- ifelse(val_probs.wo > 0.5, 1, 0)
 # Confusion matrix
 table(Predicted = val_pred.wo, Actual = val_set.wo$koi_disposition)
 # Accuracy
-actual.wo <- ifelse(val_set.wo$koi_disposition == "CONFIRMED", 0, 1)
+actual.wo <- ifelse(val_set.wo$koi_disposition == 0, 0, 1)
 mean(val_pred.wo == actual.wo)
 ```
 
+###### With class weights
+
+```{r}
+prop.table(table(train_set.wo$koi_disposition))
+class_weights <- ifelse(train_set.wo$koi_disposition == 0,
+                        1 / prop.table(table(train_set.wo$koi_disposition))[1],
+                        1 / prop.table(table(train_set.wo$koi_disposition))[2])
+
+glm_weighted.fit.wo_incertitudes <- glm(koi_disposition~., 
+                                        data = train_set.wo, 
+                                        family=binomial,
+                                        weights = class_weights)
+
+summary(glm_weighted.fit.wo_incertitudes)
+```
+```{r}
+val_probs_weighted.wo <- predict(glm_weighted.fit.wo_incertitudes, newdata = val_set.wo, type = "response")
+# Class prediction
+val_pred_weighted.wo <- ifelse(val_probs_weighted.wo > 0.5, 1, 0)
+# Confusion matrix
+table(Predicted = val_pred_weighted.wo, Actual = val_set.wo$koi_disposition)
+table(Predicted = val_pred.wo, Actual = val_set.wo$koi_disposition)
+# Accuracy
+actual_weighted.wo <- ifelse(val_set.wo$koi_disposition == 0, 0, 1)
+mean(val_pred_weighted.wo == actual_weighted.wo)
+mean(val_pred.wo == actual.wo)
+```
 
 ##### Without outliers
 
+###### Without class weights
 Fitting the model on the dataset
 ```{r}
 glm.fit.log_f <- glm(koi_disposition~., data = train_set.log_f, family=binomial)
@@ -965,9 +1052,35 @@ val_pred.log_f <- ifelse(val_probs.log_f > 0.5, 1, 0)
 # Confusion matrix
 table(Predicted = val_pred.log_f, Actual = val_set.log_f$koi_disposition)
 # Accuracy
-actual.log_f <- ifelse(val_set.log_f$koi_disposition == "CONFIRMED", 0, 1)
+actual.log_f <- ifelse(val_set.log_f$koi_disposition == 0, 0, 1)
 mean(val_pred.log_f == actual.log_f)
 ```
+
+###### With class weights
+
+```{r}
+prop.table(table(train_set.log_f$koi_disposition))
+class_weights <- ifelse(train_set.wo$koi_disposition == 0,
+                        1 / prop.table(table(train_set.log_f$koi_disposition))[1],
+                        1 / prop.table(table(train_set.log_f$koi_disposition))[2])
+
+glm_weighted.fit.log_f <- glm(koi_disposition~., data = train_set.log_f, family=binomial)
+summary(glm_weighted.fit.log_f)
+```
+
+Prediction on the testing set
+```{r}
+# Prediction on validation set
+val_probs_weighted.log_f <- predict(glm_weighted.fit.log_f, newdata = val_set.log_f, type = "response")
+# Class prediction
+val_pred_weighted.log_f <- ifelse(val_probs_weighted.log_f > 0.5, 1, 0)
+# Confusion matrix
+table(Predicted = val_pred_weighted.log_f, Actual = val_set.log_f$koi_disposition)
+# Accuracy
+actual.log_f <- ifelse(val_set.log_f$koi_disposition == 0, 0, 1)
+mean(val_pred_weighted.log_f == actual.log_f)
+```
+
 ##### Results logistic regression
 
 ```{r}
@@ -980,7 +1093,6 @@ mean(val_pred.wo == actual.wo)
 table(Predicted = val_pred.log_f, Actual = val_set.log_f$koi_disposition)
 mean(val_pred.log_f == actual.log_f)
 ```
-
 
 #### Comparison between models
 
