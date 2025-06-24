@@ -669,19 +669,163 @@ train_set.wo$koi_disposition <- as.factor(train_set.wo$koi_disposition)
 val_set.wo$koi_disposition <- as.factor(val_set.wo$koi_disposition)
 test_set.wo$koi_disposition <- as.factor(test_set.wo$koi_disposition)
 
+# LOG transformé sans incertitudes
+train_index.log <- createDataPartition(KOI_table.wo_incertitudes.log$koi_disposition, p = 0.7, list = FALSE)
+train_set.log <- KOI_table.wo_incertitudes.log[train_index.log, ]
+temp_set.log  <- KOI_table.wo_incertitudes.log[-train_index.log, ]
+
+val_index.log <- createDataPartition(temp_set.log$koi_disposition, p = 0.5, list = FALSE)
+val_set.log <- temp_set.log[val_index.log, ]
+test_set.log <- temp_set.log[-val_index.log, ]
+
+train_set.log$koi_disposition <- as.factor(train_set.log$koi_disposition)
+val_set.log$koi_disposition <- as.factor(val_set.log$koi_disposition)
+test_set.log$koi_disposition <- as.factor(test_set.log$koi_disposition)
+
 ```
 
 #### LDA
 
 LDA can be robust without normality assumption
+## 1)with outliers
+## 1)a) with incertitudes
+
+```{r}
+train_set_wo_cluster <- train_set[, !(names(train_set) %in% "cluster")]
+test_set_wo_cluster <- test_set[, !(names(test_set) %in% "cluster")]
+
+lda_model1 <- lda(koi_disposition ~ ., data = train_set_wo_cluster)
+lda_pred1 <- predict(lda_model, newdata = test_set_wo_cluster)
+
+
+# Evaluate the model using a confusion matrix
+confusionMatrix(lda_pred1$class, test_set_wo_cluster$koi_disposition)
+
+
+# 2. Project all test set observations onto the discriminant axes
+lda_proj1 <- predict(lda_model, newdata = test_set)
+
+# 3. Create a data frame for ggplot
+lda_df1 <- data.frame(lda_proj1$x)
+lda_df1$koi_disposition <- test_set$koi_disposition
+
+library(ggplot2)
+
+# Plot the distribution of the classes along the first discriminant axis
+ggplot(lda_df1, aes(x = LD1, fill = koi_disposition)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution of the classes along LD1",
+       x = "Discriminant 1 (LD1)",
+       y = "Density") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1")
+
+```
+## 1)b) without incertitudes
+
 ```{r message=FALSE, warning=FALSE}
 library(MASS) 
-```
-```{r}
-class <- train_set.log_f[1]
-features <- train_set.log_f[-1]
+library(caret)
 
-KOI_table.lda <- lda(as.matrix(features), class)
+# Train the model on the training set
+lda_model2 <- lda(koi_disposition ~ ., data = train_set.wo)
+
+# Predict directly on the test set
+lda_pred2 <- predict(lda_model2, newdata = test_set.wo)
+
+# Evaluate the model using a confusion matrix
+confusionMatrix(lda_pred2$class, test_set.wo$koi_disposition)
+
+# 1. Train the LDA model on the training set
+lda_model2 <- lda(koi_disposition ~ ., data = train_set.wo)
+
+# 2. Project all test set observations onto the discriminant axes
+lda_proj2 <- predict(lda_model2, newdata = test_set.wo)
+
+# 3. Create a data frame for ggplot
+lda_df2 <- data.frame(lda_proj2$x)
+lda_df2$koi_disposition <- test_set.wo$koi_disposition
+
+library(ggplot2)
+
+# Plot the distribution of the classes along the first discriminant axis
+ggplot(lda_df2, aes(x = LD1, fill = koi_disposition)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution of the classes along LD1",
+       x = "Discriminant 1 (LD1)",
+       y = "Density") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1")
+
+
+```
+##2)without ouliers
+## 2)a) with icertitudes
+```{r}
+library(MASS)
+library(caret)
+library(ggplot2)
+library(RColorBrewer)
+
+run_lda_analysis <- function(train_set, test_set, title = "LDA Projection") {
+  # S'assurer que le facteur est bien défini
+  train_set$koi_disposition <- as.factor(train_set$koi_disposition)
+  test_set$koi_disposition <- as.factor(test_set$koi_disposition)
+  
+  # Entraînement
+  lda_model <- lda(koi_disposition ~ ., data = train_set)
+  
+  # Prédiction
+  lda_pred <- predict(lda_model, newdata = test_set)
+  
+  # Confusion matrix avec gestion des niveaux
+  cat("\n=== Confusion Matrix:", title, "===\n")
+  print(confusionMatrix(
+    factor(lda_pred$class, levels = levels(train_set$koi_disposition)),
+    factor(test_set$koi_disposition, levels = levels(train_set$koi_disposition))
+  ))
+  
+  # Projection pour ggplot
+  lda_df <- data.frame(lda_pred$x)
+  lda_df$koi_disposition <- test_set$koi_disposition
+  
+  # Graphique
+  p <- ggplot(lda_df, aes(x = LD1, fill = koi_disposition)) +
+    geom_density(alpha = 0.5) +
+    labs(title = title,
+         x = "LD1", y = "Density") +
+    theme_minimal() +
+    scale_fill_brewer(palette = "Set1")
+  
+  print(p)
+}
+
+# Jeu sans incertitudes et sans outliers (log_f)
+train_set.log_f <- KOI_table.log_f[train_index.log_f, ]
+temp_set.log_f  <- KOI_table.log_f[-train_index.log_f, ]
+
+val_index.log_f <- createDataPartition(temp_set.log_f$koi_disposition, p = 0.5, list = FALSE)
+val_set.log_f <- temp_set.log_f[val_index.log_f, ]
+test_set.log_f <- temp_set.log_f[-val_index.log_f, ]
+
+# Jeu log transformé sans incertitudes
+train_set.log <- KOI_table.wo_incertitudes.log[train_index.log, ]
+temp_set.log  <- KOI_table.wo_incertitudes.log[-train_index.log, ]
+
+val_index.log <- createDataPartition(temp_set.log$koi_disposition, p = 0.5, list = FALSE)
+val_set.log <- temp_set.log[val_index.log, ]
+test_set.log <- temp_set.log[-val_index.log, ]
+
+run_lda_analysis(train_set.log_f, test_set.log_f, "LDA Projection - log_f (no outliers)")
+
+
+```
+
+## 2)b) without incertitudes
+
+```{r}
+run_lda_analysis(train_set.log, test_set.log, "LDA Projection - log (no uncertainties)")
+
 ```
 
 #### KNN
