@@ -586,6 +586,63 @@ dim(KOI_table.wo_incertitudes.capped)
 
 ### Classification
 
+#### Weights for each observations 
+
+
+For each observation we compute the weight according to the errors for each feature. 
+
+For each feature the associated score is computed as : 
+(abs(err1)+abs(ee2))/(2*abs(value of the feature))
+
+then we average this score over each features. 
+We obtain the final weight of an observation as : 
+1/(1+avg(score per feature))
+
+the higher the errors the lower the weight
+```{r}
+# List of main features and their corresponding error columns
+features <- c("koi_period", "koi_time0bk", "koi_impact", "koi_duration", "koi_depth", 
+              "koi_prad", "koi_insol", "koi_steff", "koi_slogg", "koi_srad")
+
+upper_errs <- paste0(features, "_err1")
+lower_errs <- paste0(features, "_err2")
+
+# Function to compute relative uncertainty per feature for all rows
+relative_uncertainty <- function(value, err1, err2) {
+  abs_err_mean <- (abs(err1) + abs(err2)) / 2
+  rel_unc <- abs_err_mean / abs(value)
+  return(rel_unc)
+}
+
+# Initialize a matrix to store relative uncertainties for each feature
+rel_unc_mat <- matrix(NA, nrow = nrow(KOI_table_clean), ncol = length(features))
+colnames(rel_unc_mat) <- features
+
+# Compute relative uncertainties for each feature
+for (i in seq_along(features)) {
+  val <- KOI_table_clean[[features[i]]]
+  err1 <- KOI_table_clean[[upper_errs[i]]]
+  err2 <- KOI_table_clean[[lower_errs[i]]]
+  
+  # Avoid division by zero or NA by replacing zeros with small value or NA handling
+  val[val == 0] <- NA
+  
+  rel_unc_mat[, i] <- relative_uncertainty(val, err1, err2)
+}
+
+# Aggregate uncertainty across features per observation (mean of available relative uncertainties)
+total_uncertainty <- apply(rel_unc_mat, 1, function(x) mean(x, na.rm = TRUE))
+
+# Compute weights: higher weight for lower uncertainty
+weights <- 1 / (1 + total_uncertainty)
+# Normalize weights between 0 and 1
+weights_norm <- weights / max(weights, na.rm = TRUE)
+length(weights_norm)
+```
+
+The weights are stored in the vector weights_norm, lower weight for more uncertain observations. (vector of size 7132)
+
+
 #### Split the data
 
 ```{r message=FALSE, warning=FALSE}
