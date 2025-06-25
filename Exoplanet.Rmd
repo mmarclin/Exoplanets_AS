@@ -183,7 +183,7 @@ dim(KOI_table.wo_incertitudes)
 attach(KOI_table)
 ```
 
-### Earth Similarity Index : 
+### Earth Similarity Index 
 ```{r}
 #### ESI : 
 
@@ -841,7 +841,61 @@ corrplot(cor_matrix, method = "color", type = "upper",
          tl.col = "black", tl.cex = 0.8, 
           diag = T)
 ```
-We still have important correlations between the features that we should probably not neglect. We can perform a PCA instead of removing the uncertainties that might be usefull to discriminate exoplanets from the rest. 
+We still have important correlations between the features that we should probably not neglect. We can perform a PCA instead of removing the uncertainties that might be usefull to discriminate exoplanets from the rest.
+
+
+```{r}
+#### PCA on KOI_table.log_f
+summary(KOI_table.log_f)
+
+boxplot(KOI_table.log_f, las = 2, col = 'gold')
+
+# Note: PCA is not about the mean, it is about the variability
+boxplot(scale(x = KOI_table.log_f[, -which(names(KOI_table.log_f) == "koi_disposition")], center = T, scale = T), las = 2, col = 'gold')
+
+KOI_scaled = scale(x = KOI_table.log_f[, -which(names(KOI_table.log_f) == "koi_disposition")], center = T, scale = T)
+
+pc.koi <- princomp(KOI_scaled, scores = T)
+summary(pc.koi)
+
+
+#
+eigenvalues <- pc.koi$sdev^2
+barplot(eigenvalues, 
+        main = "Scree Plot", 
+        xlab = "Principal Components", 
+        ylab = "Eigenvalue", 
+        col = "skyblue", 
+        names.arg = paste0("PC", 1:length(eigenvalues)))
+
+```
+
+Let's select the number of components to keep : 
+
+
+```{r}
+#
+cum_var <- cumsum(pc.koi$sdev^2 / sum(pc.koi$sdev^2))
+plot(cum_var, type = 'b', pch = 19, col = 'darkgreen',
+     xlab = "Number of Principal Components", 
+     ylab = "Cumulative Proportion of Variance Explained",
+     main = "Cumulative Variance Explained")
+abline(h = 0.95, col = "red", lty = 2)  # 95% => we keep 13 components 
+
+
+```
+
+We can keep 13 components to keep over 95% of the total variability
+
+```{r}
+# Extract PCA-transformed dataset
+KOI_pca_scores <- pc.koi$scores  # Data in the new PCA space
+
+KOI_pca <- data.frame(KOI_pca_scores[,1:13], koi_disposition = KOI_table.log_f$koi_disposition)
+# View the PCA-transformed dataset
+head(KOI_pca)
+
+```
 
 #### LDA
 
