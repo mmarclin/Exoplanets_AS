@@ -313,6 +313,7 @@ We can use :
 ```{r}
 n <- dim(KOI_table)
 p <- dim(KOI_table)
+
 ```
 
 
@@ -745,14 +746,14 @@ relative_uncertainty <- function(value, err1, err2) {
 }
 
 # Initialize a matrix to store relative uncertainties for each feature
-rel_unc_mat <- matrix(NA, nrow = nrow(KOI_table_clean), ncol = length(features))
+rel_unc_mat <- matrix(NA, nrow = nrow(KOI_table), ncol = length(features))
 colnames(rel_unc_mat) <- features
 
 # Compute relative uncertainties for each feature
 for (i in seq_along(features)) {
-  val <- KOI_table_clean[[features[i]]]
-  err1 <- KOI_table_clean[[upper_errs[i]]]
-  err2 <- KOI_table_clean[[lower_errs[i]]]
+  val <- KOI_table[[features[i]]]
+  err1 <- KOI_table[[upper_errs[i]]]
+  err2 <- KOI_table[[lower_errs[i]]]
   
   # Avoid division by zero or NA by replacing zeros with small value or NA handling
   val[val == 0] <- NA
@@ -931,9 +932,29 @@ head(KOI_pca)
 
 ```
 
+##### Dataset without outliers after PCA 
+
+```{r}
+# Step 1: Split into train (70%) and temp (40%)
+train_index.pca <- createDataPartition(KOI_pca$koi_disposition, p = 0.7, list = FALSE)
+train_set.pca <- KOI_pca[train_index.pca, ]
+temp_set.pca  <- KOI_pca[-train_index.pca, ]
+
+# Step 2: Split temp into validation and test (15%)
+val_index.pca <- createDataPartition(temp_set.pca$koi_disposition, p = 0.5, list = FALSE)
+val_set.pca <- temp_set.pca[val_index.pca, ]
+test_set.pca <- temp_set.pca[-val_index.pca, ]
+
+train_set.pca$koi_disposition <- as.factor(train_set.pca$koi_disposition)
+val_set.pca$koi_disposition <- as.factor(val_set.pca$koi_disposition)
+test_set.pca$koi_disposition <- as.factor(test_set.pca$koi_disposition)
+```
+
+
+
 #### LDA
 
-LDA can be robust without normality assumption
+LDA can be robust to normality assumption
 
 ##### with outliers
 
@@ -1275,6 +1296,7 @@ vip(knn.wo_incertitudes)
 
 ##### Without outliers
 
+
 #### SVM
 
 ##### with outliers
@@ -1426,7 +1448,133 @@ confusionMatrix(svm_preds.wo.log, val_set.wo.log$koi_disposition)
 varImp(svm.wo.log)
 ```
 
+
+###### On log_f after pca 
+
+```{r}
+svm.pca <- train(
+  koi_disposition ~ .,
+  data = train_set.pca,
+  method = "svmLinear",
+  preProcess = c("center", "scale"),
+  trControl = trainControl(method = "cv", number = 5),
+  tuneGrid = expand.grid(C = c(0.01, 0.1, 1, 10, 100))  # define multiple values of C
+)
+```
+```{r}
+print(svm.pca)
+plot(svm.pca)  # plots accuracy vs cost (C) values
+
+```
+
+```{r}
+svm_preds.pca <- predict(svm.pca, newdata = val_set.pca)
+confusionMatrix(svm_preds.pca, val_set.pca$koi_disposition)
+```
+
+
+```{r}
+varImp(svm.pca)
+```
+
 ##### Results SVM
+
+
+#### XGBoost 
+
+```{r}
+library(xgboost)
+```
+
+##### dataset without outliers after PCA
+
+```{r}
+# Convert factors to numeric labels (required by xgboost)
+train_labels <- as.numeric(train_set.pca$koi_disposition) - 1
+test_labels <- as.numeric(test_set.pca$koi_disposition) - 1
+
+# Remove the target column to get feature matrix
+train_matrix <- as.matrix(train_set.pca[, -which(names(train_set.pca) == "koi_disposition")])
+test_matrix <- as.matrix(test_set.pca[, -which(names(test_set.pca) == "koi_disposition")])
+
+```
+
+train the model : 
+
+```{r}
+xgb_model <- xgboost(
+  data = train_matrix,
+  label = train_labels,
+  objective = "multi:softmax",                # use "binary:logistic" if 2 classes
+  num_class = length(unique(train_labels)),   # use 2 if binary
+  nrounds = 100,                              # number of boosting rounds
+  eta = 0.1,                                  # learning rate
+  max_depth = 6,                              # tree depth
+  eval_metric = "merror",                     # classification error
+  verbose = 1
+)
+
+```
+
+
+Predict and test model : 
+```{r}
+# Predict class labels
+xgb_preds <- predict(xgb_model, newdata = test_matrix)
+
+# Confusion matrix
+table(Predicted = xgb_preds, Actual = test_labels)
+
+# Accuracy
+accuracy <- mean(xgb_preds == test_labels)
+cat("Test Accuracy:", round(accuracy * 100, 2), "%\n")
+
+```
+##### Without outliers 
+
+```{r}
+# Convert factors to numeric labels (required by xgboost)
+train_labels <- as.numeric(train_set.log_f$koi_disposition) - 1
+test_labels <- as.numeric(test_set.log_f$koi_disposition) - 1
+
+# Remove the target column to get feature matrix
+train_matrix <- as.matrix(train_set.log_f[, -which(names(train_set.log_f) == "koi_disposition")])
+test_matrix <- as.matrix(test_set.log_f[, -which(names(test_set.log_f) == "koi_disposition")])
+
+```
+
+train the model : 
+
+```{r}
+xgb_model <- xgboost(
+  data = train_matrix,
+  label = train_labels,
+  objective = "multi:softmax",                # use "binary:logistic" if 2 classes
+  num_class = length(unique(train_labels)),   # use 2 if binary
+  nrounds = 100,                              # number of boosting rounds
+  eta = 0.1,                                  # learning rate
+  max_depth = 6,                              # tree depth
+  eval_metric = "merror",                     # classification error
+  verbose = 1
+)
+
+```
+
+
+Predict and test model : 
+```{r}
+# Predict class labels
+xgb_preds <- predict(xgb_model, newdata = test_matrix)
+
+# Confusion matrix
+table(Predicted = xgb_preds, Actual = test_labels)
+
+# Accuracy
+accuracy <- mean(xgb_preds == test_labels)
+cat("Test Accuracy:", round(accuracy * 100, 2), "%\n")
+
+```
+~97% accuracy on the test set 
 
 
 
