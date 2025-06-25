@@ -183,7 +183,7 @@ dim(KOI_table.wo_incertitudes)
 attach(KOI_table)
 ```
 
-##### Earth Similarity Index 
+#### Earth Similarity Index 
 ```{r}
 #### ESI : 
 
