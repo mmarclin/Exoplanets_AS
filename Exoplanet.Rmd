@@ -943,7 +943,7 @@ vip(knn.wo_incertitudes)
 library(e1071)
 ```
 ```{r}
-svm_model <- train(
+svm <- train(
   koi_disposition ~ .,
   data = train_set,
   method = "svmLinear",
@@ -953,24 +953,29 @@ svm_model <- train(
 )
 ```
 ```{r}
-print(svm_model)
-plot(svm_model)  # plots accuracy vs cost (C) values
+print(svm)
+plot(svm)  # plots accuracy vs cost (C) values
 ```
 ```{r}
-svm_preds <- predict(svm_model, newdata = val_set)
+svm_preds <- predict(svm, newdata = val_set)
 confusionMatrix(svm_preds, val_set$koi_disposition)
 ```
-We have a little better accuracy compared to KNN for the validation set: 0.9942 against 0.9856
+We got:
+- accuracy: 92%
+- recall: 92%
+- specificity: 91%
 
 ```{r}
-varImp(svm_model)
+varImp(svm)
 ```
+
+incertitudes are prevalent for prediction
+then we have impact, prad, teq, insol
 
 ###### Without incertitudes
 
-We begin by training the model on the training set
 ```{r}
-svm_model_wo <- train(
+svm.wo <- train(
   koi_disposition ~ .,
   data = train_set.wo,
   method = "svmLinear",
@@ -980,22 +985,106 @@ svm_model_wo <- train(
 )
 ```
 ```{r}
-print(svm_model_wo)
-plot(svm_model_wo)  # plots accuracy vs cost (C) values
+print(svm.wo)
+plot(svm.wo)  # plots accuracy vs cost (C) values
 
 ```
 
-We obtain an accuracy of 
-
 ```{r}
-svm_preds_wo <- predict(svm_model_wo, newdata = val_set.wo)
+svm_preds_wo <- predict(svm.wo, newdata = val_set.wo)
 confusionMatrix(svm_preds_wo, val_set.wo$koi_disposition)
 ```
+Accuracy : 85%
+Recall : 83%
+Specificity : 88%
+
+```{r}
+varImp(svm.wo)
+```
+
+Order of importance :
+
+1. koi_impact : Impact Parameter [Transit Property]
+The sky-projected distance between the center of the stellar disc and the center 
+of the planet disc at conjunction, normalized by the stellar radius.
+
+2. koi_prad : Planetary Radius (Earth radius)  [Transit Property]
+The radius of the planet. Planetary radius is the product of the planet star radius ratio and the stellar radius.
+
+3. koi_teq : Equilibrium Temperature (Kelvin)  [Transit Property]
+Approximation for the temperature of the planet
+
+4. koi_insol : Insolation Flux [Earth flux]  [Transit Property]
+Another way to give the equilibrium temperature
+ 
+5. koi_steff : Stellar Effective Temperature (Kelvin)  [Stellar Parameter]
+
+6. koi_time0bk : Transit Epoch  [Transit Property]
+The time corresponding to the center of the first detected transit in Barycentric 
+Julian Day (BJD) minus a constant offset of 2,454,833.0 days
+
+etc...
+
+##### without outliers
+
+###### with incertitudes
+
+```{r}
+svm.log_f <- train(
+  koi_disposition ~ .,
+  data = train_set.log_f,
+  method = "svmLinear",
+  preProcess = c("center", "scale"),
+  trControl = trainControl(method = "cv", number = 5),
+  tuneGrid = expand.grid(C = c(0.01, 0.1, 1, 10, 100))  # define multiple values of C
+)
+```
+```{r}
+print(svm.log_f)
+plot(svm.log_f)  # plots accuracy vs cost (C) values
+```
+```{r}
+svm_preds.log_f <- predict(svm.log_f, newdata = val_set.log_f)
+confusionMatrix(svm_preds.log_f, val_set.log_f$koi_disposition)
+```
+We got:
+- accuracy: 92%
+- recall: 93%
+- specificity: 89%
+
+```{r}
+varImp(svm.log_f)
+```
+
+###### without incertitudes
+
+```{r}
+svm.wo.log <- train(
+  koi_disposition ~ .,
+  data = train_set.wo.log,
+  method = "svmLinear",
+  preProcess = c("center", "scale"),
+  trControl = trainControl(method = "cv", number = 5),
+  tuneGrid = expand.grid(C = c(0.01, 0.1, 1, 10, 100))  # define multiple values of C
+)
+```
+```{r}
+print(svm.wo.log)
+plot(svm.wo.log)  # plots accuracy vs cost (C) values
+
+```
+
+```{r}
+svm_preds.wo.log <- predict(svm.wo.log, newdata = val_set.wo.log)
+confusionMatrix(svm_preds.wo.log, val_set.wo.log$koi_disposition)
+```
 
 
 ```{r}
-varImp(svm_model_wo)
+varImp(svm.wo.log)
 ```
+
+##### Results SVM
 
 
 
@@ -1057,7 +1146,7 @@ rpart.plot(tree_model_wo_log)
 error: 14,00%, accuracy: 85,98%
 important variables: koi_prad, koi_model_snr
 
-#### Accuracy and comparison of the decision trees
+##### Accuracy and comparison of the decision trees
 ```{r}
 # Accuracy 
 acc_tree <- mean(tree_pred == val_set$koi_disposition)
@@ -1437,6 +1526,19 @@ mean(val_pred.log_f == actual.log_f)
 ```
 
 #### Comparison between models
+
+We use test set to evaluate the best model:
+
+```{r}
+
+```
+
+
+
+
+
+
+
 
 ### Clustering
 
