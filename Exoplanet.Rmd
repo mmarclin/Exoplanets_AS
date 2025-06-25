@@ -720,38 +720,26 @@ test_set.log_f$koi_disposition <- as.factor(test_set.log_f$koi_disposition)
 ##### Dataset without outliers and incertitudes
 
 ```{r}
-train_index.wo_log <- createDataPartition(KOI_table.wo_incertitudes.log$koi_disposition, p = 0.7, list = FALSE)
-train_set.wo_log <- KOI_table.wo_incertitudes[train_index, ]
-temp_set.wo_log  <- KOI_table.wo_incertitudes[-train_index, ]
+train_index.wo.log <- createDataPartition(KOI_table.wo_incertitudes.log$koi_disposition, p = 0.7, list = FALSE)
+train_set.wo.log <- KOI_table.wo_incertitudes.log[train_index.wo.log, ]
+temp_set.wo.log  <- KOI_table.wo_incertitudes.log[-train_index.wo.log, ]
 
-val_index.wo_log <- createDataPartition(temp_set.wo_log$koi_disposition, p = 0.5, list = FALSE)
-val_set.wo_log <- temp_set.wo_log[val_index.wo, ]
-test_set.wo_log <- temp_set.wo_log[-val_index.wo, ]
+val_index.wo.log <- createDataPartition(temp_set.log$koi_disposition, p = 0.5, list = FALSE)
+val_set.wo.log <- temp_set.log[val_index.wo.log, ]
+test_set.wo.log <- temp_set.log[-val_index.wo.log, ]
 
-train_set.wo_log$koi_disposition <- as.factor(train_set.wo_log$koi_disposition)
-val_set.wo_log$koi_disposition <- as.factor(val_set.wo_log$koi_disposition)
-test_set.wo_log$koi_disposition <- as.factor(test_set.wo_log$koi_disposition)
-
-# LOG transformé sans incertitudes
-train_index.log <- createDataPartition(KOI_table.wo_incertitudes.log$koi_disposition, p = 0.7, list = FALSE)
-train_set.log <- KOI_table.wo_incertitudes.log[train_index.log, ]
-temp_set.log  <- KOI_table.wo_incertitudes.log[-train_index.log, ]
-
-val_index.log <- createDataPartition(temp_set.log$koi_disposition, p = 0.5, list = FALSE)
-val_set.log <- temp_set.log[val_index.log, ]
-test_set.log <- temp_set.log[-val_index.log, ]
-
-train_set.log$koi_disposition <- as.factor(train_set.log$koi_disposition)
-val_set.log$koi_disposition <- as.factor(val_set.log$koi_disposition)
-test_set.log$koi_disposition <- as.factor(test_set.log$koi_disposition)
-
+train_set.wo.log$koi_disposition <- as.factor(train_set.wo.log$koi_disposition)
+val_set.wo.log$koi_disposition <- as.factor(val_set.wo.log$koi_disposition)
+test_set.wo.log$koi_disposition <- as.factor(test_set.wo.log$koi_disposition)
 ```
 
 #### LDA
 
 LDA can be robust without normality assumption
-## 1)with outliers
-## 1)a) with incertitudes
+
+##### with outliers
+
+###### with incertitudes
 
 ```{r}
 train_set_wo_cluster <- train_set[, !(names(train_set) %in% "cluster")]
@@ -784,7 +772,8 @@ ggplot(lda_df1, aes(x = LD1, fill = koi_disposition)) +
   scale_fill_brewer(palette = "Set1")
 
 ```
-## 1)b) without incertitudes
+
+######without incertitudes
 
 ```{r message=FALSE, warning=FALSE}
 library(MASS) 
@@ -822,8 +811,10 @@ ggplot(lda_df2, aes(x = LD1, fill = koi_disposition)) +
 
 
 ```
-##2)without ouliers
-## 2)a) with icertitudes
+
+##### without ouliers
+
+###### with incertitudes
 ```{r}
 library(MASS)
 library(caret)
@@ -884,11 +875,10 @@ run_lda_analysis(train_set.log_f, test_set.log_f, "LDA Projection - log_f (no ou
 
 ```
 
-## 2)b) without incertitudes
+###### without incertitudes
 
 ```{r}
 run_lda_analysis(train_set.log, test_set.log, "LDA Projection - log (no uncertainties)")
-
 ```
 
 #### KNN
@@ -1009,10 +999,12 @@ svm_up <- train(
   trControl = ctrl,
   metric = "ROC"
 )
-
+```
+```{r}
 print(svm_up)
 plot(svm_up)
 ```
+
 ```{r}
 svm_preds <- predict(svm_model, newdata = val_set)
 confusionMatrix(svm_preds, val_set$koi_disposition)
