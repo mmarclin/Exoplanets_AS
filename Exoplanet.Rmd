@@ -183,6 +183,69 @@ dim(KOI_table.wo_incertitudes)
 attach(KOI_table)
 ```
 
+### Earth Similarity Index : 
+```{r}
+#### ESI : 
+
+data_new = KOI_table
+data_new$koi_disposition = as.factor(data_new$koi_disposition)
+# Reference Earth values
+earth_radius <- 1      # in Earth radii
+earth_temp <- 288      # in Kelvin
+earth_insol <- 1  # Earth receives 1 Earth flux
+
+# Similarity function
+param_similarity <- function(x, x_earth) {
+  1 - abs((x - x_earth) / (x + x_earth))
+}
+
+
+# Adding insolation to ESI
+w_insol <- 1/3
+w_radius <- 1/3
+w_temp <- 1/3
+
+data_new$ESI <- with(KOI_table_clean,
+                            ifelse(!is.na(koi_prad) & !is.na(koi_teq) & !is.na(koi_insol),
+                                   (param_similarity(koi_prad, earth_radius)^w_radius) *
+                                     (param_similarity(koi_teq, earth_temp)^w_temp) *
+                                     (param_similarity(koi_insol, earth_insol)^w_insol),
+                                   NA))
+
+summary(data_new$ESI)
+
+KOI_table$ESI = data_new$ESI
+### Plot of the ESI : 
+KOI_high_esi <- KOI_table %>% 
+  filter(ESI > 0.5)
+
+# Plot
+ggplot(KOI_high_esi, aes(x = koi_prad, y = koi_teq, color = ESI)) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_gradient(low = "yellow", high = "darkblue") +
+  labs(title = "Planets with ESI > 0.5",
+       x = "Planet Radius (R_Earth)",
+       y = "Equilibrium Temperature (K)",
+       color = "ESI") +
+  theme_minimal()
+
+
+```
+
+```{r}
+
+# Plot density of ESI by disposition
+ggplot(data_new, aes(x = ESI, fill = koi_disposition)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density of ESI by KOI Disposition",
+       x = "Earth Similarity Index (ESI)",
+       y = "Density",
+       fill = "Disposition") +
+  theme_minimal()
+
+```
+We see that this new feature seems to be discriminating well. 
+
 #### Class distribution
 
 ##### Class imbalance 
@@ -559,6 +622,39 @@ since they are not very discriminative : data_log_f
 ```{r}
 data_log_f = data_log[,-c(colnames(data_log)==c("koi_period_err2","koi_period_err1"))]
 ```
+
+Comparison of boxplot fro 1 feature : 
+```{r}
+library(ggplot2)
+library(gridExtra)
+
+feature <- "koi_teq"
+
+# Boxplot for original data
+p1 <- ggplot(data, aes_string(y = feature)) +
+  geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
+  theme_minimal() +
+  labs(title = paste("Original", feature), y = feature)
+
+# Boxplot for log-transformed data
+p2 <- ggplot(data_log_f, aes_string(y = feature)) +
+  geom_boxplot(fill = "lightgreen", outlier.colour = "red", outlier.shape = 1) +
+  theme_minimal() +
+  labs(title = paste("Log-transformed", feature), y = paste("log(", feature, ")", sep=""))
+
+# Boxplot for log-transformed data
+p3 <- ggplot(data_capped, aes_string(y = feature)) +
+  geom_boxplot(fill = "lightgreen", outlier.colour = "red", outlier.shape = 1) +
+  theme_minimal() +
+  labs(title = paste("Value-capped", feature), y = paste("log(", feature, ")", sep=""))
+
+# Display side by side
+grid.arrange(p1, p2,p3, ncol = 3)
+```
+
+
+
+
 ##### Resulting datasets
 
 We now have the datasets : 
@@ -732,6 +828,20 @@ train_set.wo.log$koi_disposition <- as.factor(train_set.wo.log$koi_disposition)
 val_set.wo.log$koi_disposition <- as.factor(val_set.wo.log$koi_disposition)
 test_set.wo.log$koi_disposition <- as.factor(test_set.wo.log$koi_disposition)
 ```
+
+
+##### PCA on the KOI_table.log_f
+```{r}
+numeric_data <- KOI_table.log_f[, sapply(KOI_table.log_f, is.numeric)]
+cor_matrix <- cor(numeric_data, use = "pairwise.complete.obs")
+
+
+
+corrplot(cor_matrix, method = "color", type = "upper", 
+         tl.col = "black", tl.cex = 0.8, 
+          diag = T)
+```
+We still have important correlations between the features that we should probably not neglect. We can perform a PCA instead of removing the uncertainties that might be usefull to discriminate exoplanets from the rest. 
 
 #### LDA
 
