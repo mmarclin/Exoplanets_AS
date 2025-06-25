@@ -1584,7 +1584,7 @@ We use test set to evaluate the best model:
 #### Features
 
 ```{r}
-class <- KOI_table.wo_incertitudes.log[1]
+class <- as.factor(KOI_table.wo_incertitudes.log$koi_disposition)
 features <- KOI_table.wo_incertitudes.log[-13]
 dim(features)
 
@@ -1672,6 +1672,26 @@ table(KOI_table.wo_incertitudes.log$koi_disposition)
 ```{r}
 # Add cluster assignments to your data
 pca <- prcomp(features, scale. = TRUE)
+
+# Cumulative proportion of explained variance
+plot(
+  cumsum(pca$sdev^2) / sum(pca$sde^2),
+  type = 'b',
+  axes = F,
+  xlab = 'number of components',
+  ylab = 'contribution to the total variability',
+  ylim = c(0, 1)
+)
+abline(h = 1, col = 'blue')
+abline(h = 0.8, lty = 2, col = 'blue')
+box()
+axis(2, at = 0:10 / 10, labels = 0:10 / 10)
+axis(1,
+     at = 1:ncol(features),
+     labels = 1:ncol(features),
+     las = 2)
+
+
 plot(pca$x[,1], pca$x[,2],
      col = cluster_labels.ec,
      pch = 19,
@@ -1697,8 +1717,27 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = TrueLabel, shape = cluster)) +
 ```
 
 
-```{r}
+```{r warning=FALSE}
 pca <- prcomp(features, scale. = TRUE)
+
+# Cumulative proportion of explained variance
+plot(
+  cumsum(pca$sdev^2) / sum(pca$sde^2),
+  type = 'b',
+  axes = F,
+  xlab = 'number of components',
+  ylab = 'contribution to the total variability',
+  ylim = c(0, 1)
+)
+abline(h = 1, col = 'blue')
+abline(h = 0.8, lty = 2, col = 'blue')
+box()
+axis(2, at = 0:10 / 10, labels = 0:10 / 10)
+axis(1,
+     at = 1:ncol(features),
+     labels = 1:ncol(features),
+     las = 2)
+
 plot(pca$x[,1], pca$x[,2],
      col = cluster_labels.ew,
      pch = 19,
@@ -1723,12 +1762,54 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = TrueLabel, shape = cluster)) +
   theme_minimal()
 ```
 ```{r}
-pca_df$TrueLabel <- KOI_table.wo_incertitudes.log$koi_disposition  # or original class label
+# 3D 
+pca_3d_df <- data.frame(
+  PC1 = pca$x[, 1],
+  PC2 = pca$x[, 2],
+  PC3 = pca$x[, 3],
+  Cluster = as.factor(cluster_labels.ew),
+  TrueLabel = as.factor(class)
+)
+library(plotly)
+plot_ly(pca_3d_df, 
+        x = ~PC1, y = ~PC2, z = ~PC3, 
+        color = ~Cluster, 
+        colors = c("#1f77b4",  "#d62728"),
+        type = "scatter3d", 
+        mode = "markers",
+        marker = list(size = 3)) %>%
+  layout(title = "3D PCA Plot Colored by Cluster")
 
-ggplot(pca_df, aes(x = PC1, y = PC2, color = TrueLabel, shape = Cluster)) +
-  geom_point(size = 1.8, alpha = 0.7) +
-  labs(title = "PCA: True Labels vs Clusters") +
-  theme_minimal()
+
+pca_3d_df_true <- data.frame(
+  PC1 = pca$x[, 1],
+  PC2 = pca$x[, 2],
+  PC3 = pca$x[, 3],
+  Cluster = class
+)
+plot_ly(pca_3d_df_true, 
+        x = ~PC1, y = ~PC2, z = ~PC3, 
+        color = ~Cluster, 
+        colors = c("#1f77b4",  "#d62728"),
+        type = "scatter3d", 
+        mode = "markers",
+        marker = list(size = 3)) %>%
+  layout(title = "3D PCA Plot Colored by Cluster")
+
+plot_ly(
+  pca_3d_df,
+  x = ~PC1, y = ~PC2, z = ~PC3,
+  color = ~Cluster,                      # color by cluster
+  text = ~paste("True Label:", TrueLabel), # hover shows true label
+  colors = RColorBrewer::brewer.pal(8, "Set2"),
+  type = "scatter3d",
+  mode = "markers",
+  marker = list(size = 3)
+) %>%
+  layout(
+    title = "3D PCA: Colored by Cluster, Hover Shows True Label"
+  )
+
 ```
 
 ##### Exoplanets only
@@ -1844,18 +1925,52 @@ ggplot(df, aes(x = "", y = Count, fill = factor(Cluster))) +
 # Run PCA on scaled features
 pca <- prcomp(features.exo, scale. = TRUE)
 
+# Cumulative proportion of explained variance
+plot(
+  cumsum(pca$sdev^2) / sum(pca$sde^2),
+  type = 'b',
+  axes = F,
+  xlab = 'number of components',
+  ylab = 'contribution to the total variability',
+  ylim = c(0, 1)
+)
+abline(h = 1, col = 'blue')
+abline(h = 0.8, lty = 2, col = 'blue')
+box()
+axis(2, at = 0:10 / 10, labels = 0:10 / 10)
+axis(1,
+     at = 1:ncol(features.exo),
+     labels = 1:ncol(features.exo),
+     las = 2)
+
+
 # Create data frame with first 2 PCs and cluster labels
 pca_df <- data.frame(PC1 = pca$x[, 1],
                      PC2 = pca$x[, 2],
                      Cluster = factor(cluster_labels))
 
 # Plot
-ggplot(pca_df, aes(x = PC1, y = PC2, color = Cluster)) +
+ggplot(pca_df, aes(x = PC1, y = PC2, color = cluster)) +
   geom_point(size = 1.8, alpha = 0.7) +
   labs(title = "Clusters Visualized in PCA Space") +
   theme_minimal() +
   theme(legend.position = "right")
 
+# 3D
+pca_3d_df <- data.frame(
+  PC1 = pca$x[, 1],
+  PC2 = pca$x[, 2],
+  PC3 = pca$x[, 3],
+  Cluster = as.factor(cluster_labels)
+)
+plot_ly(pca_3d_df, 
+        x = ~PC1, y = ~PC2, z = ~PC3, 
+        color = ~Cluster, 
+        colors = c("#1f77b4", "#2ca02c", "#d62728", "#9467bd"),
+        type = "scatter3d", 
+        mode = "markers",
+        marker = list(size = 3)) %>%
+  layout(title = "3D PCA Plot Colored by Cluster")
 ```
 
 
