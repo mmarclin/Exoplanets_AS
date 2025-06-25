@@ -1254,7 +1254,7 @@ knn.wo_incertitudes <- train(
   data = train_set.wo,
   method = "knn",
   preProcess = c("center", "scale"),  # normalize predictors
-  tuneLength = 10  # try different values of k (number of neighbors)
+  tuneLength = 15  # try different values of k (number of neighbors)
 )
 ```
 
@@ -1274,6 +1274,58 @@ vip(knn.wo_incertitudes)
 ```
 
 ##### Without outliers
+
+```{r}
+knn.log_f <- train(
+  koi_disposition ~ ., 
+  data = train_set.log_f,
+  method = "knn",
+  preProcess = c("center", "scale"),  # normalize predictors
+  tuneLength = 10  # try different values of k (number of neighbors)
+)
+```
+
+Results:
+```{r}
+print(knn.log_f)
+plot(knn.log_f)
+```
+```{r}
+knn_preds_log_f <- predict(knn.log_f, newdata = val_set.log_f)
+confusionMatrix(knn_preds_log_f, val_set.log_f$koi_disposition)
+```
+
+
+```{r}
+vip(knn.log_f)
+```
+##### Without incertitudes and outliers
+
+```{r}
+knn.wo.log <- train(
+  koi_disposition ~ ., 
+  data = train_set.wo.log,
+  method = "knn",
+  preProcess = c("center", "scale"),  # normalize predictors
+  tuneLength = 10  # try different values of k (number of neighbors)
+)
+```
+
+Results:
+```{r}
+print(knn.wo.log)
+plot(knn.wo.log)
+```
+```{r}
+knn_preds_wo.log <- predict(knn.wo.log, newdata = val_set.wo.log)
+confusionMatrix(knn_preds_wo.log, val_set.wo.log$koi_disposition)
+```
+
+
+```{r}
+vip(knn.wo.log)
+```
+
 
 #### SVM
 
