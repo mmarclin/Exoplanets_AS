@@ -679,6 +679,33 @@ dim(KOI_table.wo_incertitudes.log)
 dim(KOI_table.wo_incertitudes.capped)
 # ... use this line to get any dataset wo incertitudes : KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
 ```
+#### MANOVA/ANOVA on the new datasets 
+
+We need to perform a manova test to see if there is statistical evidence that the mean value of the 2 groups is different in the feature space. 
+
+```{r}
+response_vars <- KOI_table.wo_incertitudes.log[, -which(names(KOI_table.wo_incertitudes.log) == "koi_disposition")]
+dim(response_vars)
+sum(complete.cases(KOI_table.wo_incertitudes.log))
+
+# MANOVA model
+manova_model <- manova(as.matrix(response_vars[,1:2]) ~ koi_disposition, data = KOI_table.wo_incertitudes.log)
+summary.manova(manova_model)
+
+```
+pvalue is very low => we reject the equality of the mean , there is statistical evidence to say that the mean of the features is different in the 2 groups. 
+
+But which features ? 
+```{r}
+pvalues <- sapply(names(response_vars), function(var) {
+  formula <- as.formula(paste(var, "~ koi_disposition"))
+  fit <- aov(formula, data = KOI_table.wo_incertitudes.log)
+  summary(fit)[[1]][["Pr(>F)"]][1]
+})
+
+pvalues
+```
+The mean of the 2 groups is different for each feature. 
 
 ### Classification
 
