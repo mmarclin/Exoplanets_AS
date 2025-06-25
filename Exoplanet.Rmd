@@ -1542,12 +1542,21 @@ We use test set to evaluate the best model:
 
 ### Clustering
 
+#### Features
+
 ```{r}
-class <- train_set[1]
-features <- train_set[-1]
+class <- KOI_table.wo_incertitudes.log[1]
+features <- KOI_table.wo_incertitudes.log[-13]
+dim(features)
+
+features.exo <- KOI_table.wo_incertitudes.log[KOI_table.wo_incertitudes.log$koi_disposition==1,-13]
+dim(features.exo)
 ```
 
 #### Hiearchical clustering
+
+##### full dataset
+
 ```{r}
 library(cluster)
 ```
@@ -1599,26 +1608,215 @@ plot(
   sub = ''
 )
 rect.hclust(D.ea, k = 2)
+plot(
+  D.ew,
+  main = 'euclidean-ward',
+  hang = -0.1,
+  xlab = '',
+  labels = F,
+  cex = 0.6,
+  sub = ''
+)
+rect.hclust(D.ew, k = 2)
 ```
 ```{r}
 # Cut tree into k clusters (e.g., k = 3)
-cluster_labels <- cutree(D.es, k = 2)
-cluster_labels
-length(which(cluster_labels==TRUE))
-length(cluster_labels==FALSE)
+cluster_labels.ec <- cutree(D.ec, k = 2)
+cluster_labels.ew <- cutree(D.ew, k = 2)
+```
+```{r}
+table(cluster_labels.ec)
+table(cluster_labels.ew)
+table(KOI_table.wo_incertitudes.log$koi_disposition)
 ```
 
 ```{r}
 # Add cluster assignments to your data
-train_set$cluster <- as.factor(cluster_labels)
-table(train_set$cluster)
 pca <- prcomp(features, scale. = TRUE)
 plot(pca$x[,1], pca$x[,2],
-     col = cluster_labels,
+     col = cluster_labels.ec,
      pch = 19,
      xlab = "PC1", ylab = "PC2",
      main = "PCA of Features Colored by Hierarchical Clusters")
 legend("topright", legend = paste("Cluster", 1:2), col = 1:2, pch = 19)
+
+pca_df <- as.data.frame(pca$x[, 1:2])
+pca_df$cluster <- as.factor(cluster_labels.ec)
+
+ggplot(pca_df, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point(size = 1.8) +
+  labs(title = "PCA Colored by Clusters", color = "Cluster") +
+  theme_minimal()
+
+# True Vs clustering
+pca_df$TrueLabel <- KOI_table.wo_incertitudes.log$koi_disposition  # or original class label
+
+ggplot(pca_df, aes(x = PC1, y = PC2, color = TrueLabel, shape = cluster)) +
+  geom_point(size = 1.8, alpha = 0.7) +
+  labs(title = "PCA: True Labels vs Clusters") +
+  theme_minimal()
+```
+
+
+```{r}
+pca <- prcomp(features, scale. = TRUE)
+plot(pca$x[,1], pca$x[,2],
+     col = cluster_labels.ew,
+     pch = 19,
+     xlab = "PC1", ylab = "PC2",
+     main = "PCA of Features Colored by Hierarchical Clusters")
+legend("topright", legend = paste("Cluster", 1:2), col = 1:2, pch = 19)
+
+pca_df <- as.data.frame(pca$x[, 1:2])
+pca_df$cluster <- as.factor(cluster_labels.ew)
+
+ggplot(pca_df, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point(size = 1.8) +
+  labs(title = "PCA Colored by Clusters", color = "Cluster") +
+  theme_minimal()
+
+# True Vs clustering
+pca_df$TrueLabel <- KOI_table.wo_incertitudes.log$koi_disposition  # or original class label
+
+ggplot(pca_df, aes(x = PC1, y = PC2, color = TrueLabel, shape = cluster)) +
+  geom_point(size = 1.8, alpha = 0.7) +
+  labs(title = "PCA: True Labels vs Clusters") +
+  theme_minimal()
+```
+```{r}
+pca_df$TrueLabel <- KOI_table.wo_incertitudes.log$koi_disposition  # or original class label
+
+ggplot(pca_df, aes(x = PC1, y = PC2, color = TrueLabel, shape = Cluster)) +
+  geom_point(size = 1.8, alpha = 0.7) +
+  labs(title = "PCA: True Labels vs Clusters") +
+  theme_minimal()
+```
+
+##### Exoplanets only
+
+There is 4 types of exoplanets : Gas giant, Neptunian, super-Earth, and terrestrial
+
+
+Compute the dissimilarity matrix
+```{r}
+D.exo.e <- dist(features.exo,method="euclidean") 
+D.exo.m <- dist(features.exo,method="manhattan") 
+D.exo.c <- dist(features.exo,method="canberra") 
+```
+
+Testing multiple linkage
+```{r}
+D.exo.es <- hclust(D.exo.e, method = 'single')    # closest pair of points
+D.exo.ea <- hclust(D.exo.e, method = 'average')   # average distance between all points
+D.exo.ec <- hclust(D.exo.e, method = 'complete')  # farthest pair of points
+D.exo.ew <- hclust(D.exo.e, method = 'ward.D2')   # minimize increase in total within-cluster variance
+```
+
+Plot dendograms
+```{r}
+plot(
+  D.exo.es,
+  main = 'euclidean-single',
+  hang = -0.1,
+  xlab = '',
+  labels = F,
+  cex = 0.6,
+  sub = ''
+)
+rect.hclust(D.exo.es, k = 4)   # 2 clusters
+plot(
+  D.exo.ec,
+  main = 'euclidean-complete',
+  hang = -0.1,
+  xlab = '',
+  labels = F,
+  cex = 0.6,
+  sub = ''
+)
+rect.hclust(D.exo.ec, k = 4)
+plot(
+  D.exo.ea,
+  main = 'euclidean-average',
+  hang = -0.1,
+  xlab = '',
+  labels = F,
+  cex = 0.6,
+  sub = ''
+)
+rect.hclust(D.exo.ea, k = 4)
+plot(
+  D.exo.ew,
+  main = 'euclidean-ward',
+  hang = -0.1,
+  xlab = '',
+  labels = F,
+  cex = 0.6,
+  sub = ''
+)
+rect.hclust(D.exo.ew, k = 4)
+```
+```{r}
+plot(
+  D.exo.ew,
+  main = 'euclidean-ward',
+  hang = -0.1,
+  xlab = '',
+  labels = F,
+  cex = 0.6,
+  sub = ''
+)
+rect.hclust(D.exo.ew, k = 4)
+```
+```{r}
+# Cut tree into k clusters
+cluster_labels <- cutree(D.ew, k = 4)
+cluster_labels
+```
+
+```{r}
+length(cluster_labels)
+cluster_counts <- table(cluster_labels)
+cluster_counts
+```
+
+Planet type distribution
+```{r}
+df <- as.data.frame(cluster_counts)
+colnames(df) <- c("Cluster", "Count")
+
+df$Percent <- round(100 * df$Count / sum(df$Count), 1)
+df$Label <- paste0(df$Percent, "%")
+
+# Plot
+ggplot(df, aes(x = "", y = Count, fill = factor(Cluster))) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar("y") +
+  geom_text(aes(label = Label),
+            position = position_stack(vjust = 0.5),
+            color = "black",     # make text black
+            size = 5,            # increase text size
+            fontface = "bold") + # optional: make it bold
+  labs(title = "Cluster Distribution", fill = "Cluster") +
+  theme_void()
+```
+
+
+```{r}
+# Run PCA on scaled features
+pca <- prcomp(features.exo, scale. = TRUE)
+
+# Create data frame with first 2 PCs and cluster labels
+pca_df <- data.frame(PC1 = pca$x[, 1],
+                     PC2 = pca$x[, 2],
+                     Cluster = factor(cluster_labels))
+
+# Plot
+ggplot(pca_df, aes(x = PC1, y = PC2, color = Cluster)) +
+  geom_point(size = 1.8, alpha = 0.7) +
+  labs(title = "Clusters Visualized in PCA Space") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
 ```
 
 
@@ -1634,7 +1832,6 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = cluster)) +
   theme_minimal()
 
 ```
-
 #### K-means
 
 ```{r}
