@@ -183,7 +183,7 @@ dim(KOI_table.wo_incertitudes)
 attach(KOI_table)
 ```
 
-### Earth Similarity Index 
+##### Earth Similarity Index 
 ```{r}
 #### ESI : 
 
@@ -198,7 +198,6 @@ earth_insol <- 1  # Earth receives 1 Earth flux
 param_similarity <- function(x, x_earth) {
   1 - abs((x - x_earth) / (x + x_earth))
 }
-
 
 # Adding insolation to ESI
 w_insol <- 1/3
@@ -679,6 +678,7 @@ dim(KOI_table.wo_incertitudes.log)
 dim(KOI_table.wo_incertitudes.capped)
 # ... use this line to get any dataset wo incertitudes : KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
 ```
+
 #### MANOVA/ANOVA on the new datasets 
 
 We need to perform a manova test to see if there is statistical evidence that the mean value of the 2 groups is different in the feature space. 
