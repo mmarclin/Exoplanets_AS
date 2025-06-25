@@ -183,7 +183,14 @@ dim(KOI_table.wo_incertitudes)
 attach(KOI_table)
 ```
 
-#### Earth Similarity Index 
+##### Earth Similarity Index 
+
+The  ESI (Earth Similarity Index) measures how similar a planet is to Earth, ranging from 0 (not similar) to 1 (identical).
+
+ESI = prod(1 - abs(xi - x0) / (xi + x0))^wi
+where xi = planet’s value, x0 = Earth’s value, wi = weight for each property.
+For the esi here , we can use the radius, the temperature, the earth insolation with equal weights for each feature. 
+
 ```{r}
 #### ESI : 
 
