@@ -863,10 +863,7 @@ run_lda_analysis(train_set.log_f, test_set.log_f, "LDA Projection - log_f (no ou
 
 ```{r}
 run_lda_analysis(train_set.wo.log, test_set.wo.log, "LDA Projection - log (no uncertainties)")
-```  
-
-#####Conclusion 
-
+```
 ```{r}
 # Extraire les métriques
 get_metrics <- function(cm) {
@@ -906,100 +903,7 @@ ggplot(performance_df, aes(x = Metric, y = Value, fill = Model)) +
 
 
 ```
-#### QDA
 
-##### with outliers
-
-###### with icertitudes
-```{r}
-library(MASS)
-library(caret)
-
-train_set_wo_cluster <- train_set[, !(names(train_set) %in% "cluster")]
-test_set_wo_cluster <- test_set[, !(names(test_set) %in% "cluster")]
-
-qda_model1 <- qda(koi_disposition ~ ., data = train_set_wo_cluster)
-qda_pred1 <- predict(qda_model1, newdata = test_set_wo_cluster)
-
-# Évaluation avec matrice de confusion
-confusionMatrix(qda_pred1$class, test_set_wo_cluster$koi_disposition)
-
-```
-
-###### without incertitudes
-```{r}
-qda_model2 <- qda(koi_disposition ~ ., data = train_set.wo)
-qda_pred2 <- predict(qda_model2, newdata = test_set.wo)
-
-confusionMatrix(qda_pred2$class, test_set.wo$koi_disposition)
-
-```
-
-##### without ouliers
-###### with icertitudes
-```{r}
-library(MASS)
-library(caret)
-
-run_qda_analysis <- function(train_set, test_set, title = "QDA Results") {
-  train_set$koi_disposition <- as.factor(train_set$koi_disposition)
-  test_set$koi_disposition <- as.factor(test_set$koi_disposition)
-  
-  qda_model <- qda(koi_disposition ~ ., data = train_set)
-  qda_pred <- predict(qda_model, newdata = test_set)
-  
-  cat("\n=== Confusion Matrix:", title, "===\n")
-  print(confusionMatrix(
-    factor(qda_pred$class, levels = levels(train_set$koi_disposition)),
-    factor(test_set$koi_disposition, levels = levels(train_set$koi_disposition))
-  ))
-}
-
-run_qda_analysis(train_set.log_f, test_set.log_f, "QDA - log_f (no outliers)")
-
-```
-
-###### without incertitudes
-
-```{r}
-run_qda_analysis(train_set.wo.log, test_set.wo.log, "QDA - log (no uncertainties)")
-
-```
-
-##### Conclusion 
-```{r}
-get_metrics <- function(cm) {
-  acc <- cm$overall["Accuracy"]
-  sens <- cm$byClass["Sensitivity"]
-  spec <- cm$byClass["Specificity"]
-  return(c(Accuracy = acc, Sensitivity = sens, Specificity = spec))
-}
-
-cm1 <- confusionMatrix(qda_pred1$class, test_set$koi_disposition)
-cm2 <- confusionMatrix(qda_pred2$class, test_set.wo$koi_disposition)
-
-metrics1 <- get_metrics(cm1)
-metrics2 <- get_metrics(cm2)
-
-library(tidyr)
-library(dplyr)
-library(ggplot2)
-
-performance_df <- data.frame(
-  Metric = rep(c("Accuracy", "Sensitivity", "Specificity"), 2),
-  Value = c(metrics1, metrics2),
-  Model = rep(c("All features", "Without uncertainties"), each = 3)
-)
-
-ggplot(performance_df, aes(x = Metric, y = Value, fill = Model)) +
-  geom_col(position = "dodge") +
-  ylim(0, 1) +
-  labs(title = "Comparative Performance of QDA Models",
-       y = "Score", x = "Metric") +
-  scale_fill_brewer(palette = "Set1") +
-  theme_minimal()
-
-```
 
 #### KNN
 
@@ -1985,7 +1889,7 @@ rect.hclust(D.exo.ew, k = 4)
 ```
 ```{r}
 # Cut tree into k clusters
-cluster_labels <- cutree(D.ew, k = 4)
+cluster_labels <- cutree(D.exo.ew, k = 4)
 cluster_labels
 ```
 
@@ -2046,7 +1950,7 @@ pca_df <- data.frame(PC1 = pca$x[, 1],
                      Cluster = factor(cluster_labels))
 
 # Plot
-ggplot(pca_df, aes(x = PC1, y = PC2, color = cluster)) +
+ggplot(pca_df, aes(x = PC1, y = PC2, color = Cluster)) +
   geom_point(size = 1.8, alpha = 0.7) +
   labs(title = "Clusters Visualized in PCA Space") +
   theme_minimal() +
