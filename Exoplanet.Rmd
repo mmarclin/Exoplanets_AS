@@ -724,9 +724,9 @@ train_index.wo.log <- createDataPartition(KOI_table.wo_incertitudes.log$koi_disp
 train_set.wo.log <- KOI_table.wo_incertitudes.log[train_index.wo.log, ]
 temp_set.wo.log  <- KOI_table.wo_incertitudes.log[-train_index.wo.log, ]
 
-val_index.wo.log <- createDataPartition(temp_set.log$koi_disposition, p = 0.5, list = FALSE)
-val_set.wo.log <- temp_set.log[val_index.wo.log, ]
-test_set.wo.log <- temp_set.log[-val_index.wo.log, ]
+val_index.wo.log <- createDataPartition(temp_set.wo.log$koi_disposition, p = 0.5, list = FALSE)
+val_set.wo.log <- temp_set.wo.log[val_index.wo.log, ]
+test_set.wo.log <- temp_set.wo.log[-val_index.wo.log, ]
 
 train_set.wo.log$koi_disposition <- as.factor(train_set.wo.log$koi_disposition)
 val_set.wo.log$koi_disposition <- as.factor(val_set.wo.log$koi_disposition)
@@ -746,7 +746,7 @@ train_set_wo_cluster <- train_set[, !(names(train_set) %in% "cluster")]
 test_set_wo_cluster <- test_set[, !(names(test_set) %in% "cluster")]
 
 lda_model1 <- lda(koi_disposition ~ ., data = train_set_wo_cluster)
-lda_pred1 <- predict(lda_model, newdata = test_set_wo_cluster)
+lda_pred1 <- predict(lda_model1, newdata = test_set_wo_cluster)
 
 
 # Evaluate the model using a confusion matrix
@@ -754,7 +754,7 @@ confusionMatrix(lda_pred1$class, test_set_wo_cluster$koi_disposition)
 
 
 # 2. Project all test set observations onto the discriminant axes
-lda_proj1 <- predict(lda_model, newdata = test_set)
+lda_proj1 <- predict(lda_model1, newdata = test_set)
 
 # 3. Create a data frame for ggplot
 lda_df1 <- data.frame(lda_proj1$x)
@@ -863,6 +863,45 @@ run_lda_analysis(train_set.log_f, test_set.log_f, "LDA Projection - log_f (no ou
 
 ```{r}
 run_lda_analysis(train_set.wo.log, test_set.wo.log, "LDA Projection - log (no uncertainties)")
+```
+```{r}
+# Extraire les métriques
+get_metrics <- function(cm) {
+  acc <- cm$overall["Accuracy"]
+  sens <- cm$byClass["Sensitivity"]
+  spec <- cm$byClass["Specificity"]
+  return(c(Accuracy = acc, Sensitivity = sens, Specificity = spec))
+}
+
+# Confusion matrices des deux premiers modèles
+cm1 <- confusionMatrix(lda_pred1$class, test_set$koi_disposition)
+cm2 <- confusionMatrix(lda_pred2$class, test_set.wo$koi_disposition)
+
+# Extraction des performances
+metrics1 <- get_metrics(cm1)
+metrics2 <- get_metrics(cm2)
+
+# Création d'un data frame au format long pour ggplot
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+
+performance_df <- data.frame(
+  Metric = rep(c("Accuracy", "Sensitivity", "Specificity"), 2),
+  Value = c(metrics1, metrics2),
+  Model = rep(c("All features", "Without uncertainties"), each = 3)
+)
+
+# Barplot comparatif
+ggplot(performance_df, aes(x = Metric, y = Value, fill = Model)) +
+  geom_col(position = "dodge") +
+  ylim(0, 1) +
+  labs(title = "Comparative Performance of LDA Models",
+       y = "Score", x = "Metric") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_minimal()
+
+
 ```
 
 
