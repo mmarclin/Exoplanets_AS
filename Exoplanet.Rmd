@@ -204,7 +204,7 @@ w_insol <- 1/3
 w_radius <- 1/3
 w_temp <- 1/3
 
-data_new$ESI <- with(KOI_table_clean,
+data_new$ESI <- with(data_new,
                             ifelse(!is.na(koi_prad) & !is.na(koi_teq) & !is.na(koi_insol),
                                    (param_similarity(koi_prad, earth_radius)^w_radius) *
                                      (param_similarity(koi_teq, earth_temp)^w_temp) *
