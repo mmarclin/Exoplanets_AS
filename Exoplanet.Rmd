@@ -687,6 +687,16 @@ dim(KOI_table.wo_incertitudes.capped)
 # ... use this line to get any dataset wo incertitudes : KOI_table_capped %>% dplyr::select(-all_of(column_incertitudes))
 ```
 
+New dataset without the err2, esi and insol
+```{r}
+### KOI_table.selected
+column_sel_rm = c("koi_time0bk_err2", "koi_impact_err2", "koi_duration_err2", "koi_depth_err2", "koi_prad_err2", "koi_insol", "koi_insol_err1", "koi_insol_err2", "koi_steff_err2", "koi_slogg_err2", "koi_srad_err2", "ESI")
+
+KOI_table.selected <- KOI_table.log_f %>% dplyr::select(-all_of(column_sel_rm))
+
+names(KOI_table.selected)
+```
+
 #### MANOVA/ANOVA on the new datasets 
 
 We need to perform a manova test to see if there is statistical evidence that the mean value of the 2 groups is different in the feature space. 
@@ -950,6 +960,23 @@ val_set.pca$koi_disposition <- as.factor(val_set.pca$koi_disposition)
 test_set.pca$koi_disposition <- as.factor(test_set.pca$koi_disposition)
 ```
 
+##### Dataset features selected not correlated
+
+```{r}
+# Step 1: Split into train (70%) and temp (40%)
+train_index.selected <- createDataPartition(KOI_table.selected$koi_disposition, p = 0.7, list = FALSE)
+train_set.selected <- KOI_table.selected[train_index.selected, ]
+temp_set.selected  <- KOI_table.selected[-train_index.selected, ]
+
+# Step 2: Split temp into validation and test (15%)
+val_index.selected <- createDataPartition(temp_set.selected$koi_disposition, p = 0.5, list = FALSE)
+val_set.selected <- temp_set.selected[val_index.selected, ]
+test_set.selected <- temp_set.selected[-val_index.selected, ]
+
+train_set.selected$koi_disposition <- as.factor(train_set.selected$koi_disposition)
+val_set.selected$koi_disposition <- as.factor(val_set.selected$koi_disposition)
+test_set.selected$koi_disposition <- as.factor(test_set.selected$koi_disposition)
+```
 
 
 #### LDA
