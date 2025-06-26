@@ -2087,10 +2087,10 @@ We use test set to evaluate the best model:
 
 ```{r}
 class <- as.factor(KOI_table.wo_incertitudes.log$koi_disposition)
-features <- KOI_table.wo_incertitudes.log[,-c(13,14)]
+features <- KOI_table.wo_incertitudes.log[,-c(12,13)]
 dim(features)
 
-features.exo <- KOI_table.wo_incertitudes.log[KOI_table.wo_incertitudes.log$koi_disposition==1,-c(13,14)]
+features.exo <- KOI_table.wo_incertitudes.log[KOI_table.wo_incertitudes.log$koi_disposition==1,-c(12,13)]
 dim(features.exo)
 ```
 
