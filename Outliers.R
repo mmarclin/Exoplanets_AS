@@ -541,3 +541,166 @@ KOI_pca <- data.frame(KOI_pca_scores[,1:13], koi_disposition = KOI_table.log_f$k
 # View the PCA-transformed dataset
 head(KOI_pca)
 
+
+### Habitabily prediction using HWC dataset : 
+
+hwc = read.csv("C:/Users/antoi/OneDrive/Bureau/AppliedStats/PROJECT EXOPLANETS/hwc.csv")
+head(hwc)
+# Define the features to keep
+selected_features <- c(
+  # Planet
+  "P_RADIUS", "P_PERIOD", "P_TEMP_EQUIL", "P_FLUX",
+  
+  # Star
+  "S_TEMPERATURE", "S_RADIUS", "S_LOG_G",
+  
+  # Target
+  "P_HABITABLE"
+)
+
+# Keep only those columns in the dataset
+hwc <- hwc[, selected_features]
+hwc$P_HABITABLE = ifelse(hwc$P_HABITABLE ==0 , 0 ,1 )
+hwc$P_HABITABLE = as.factor(hwc$P_HABITABLE)
+levels(hwc$P_HABITABLE )
+table(hwc$P_HABITABLE)
+# change the names : 
+colnames(hwc) <- c(
+  "koi_prad", "koi_period", "koi_teq", "koi_insol",
+  "koi_steff", "koi_srad", "koi_slogg",
+  "koi_disposition"
+)
+hwc = na.omit(hwc)
+nrow(hwc)
+hwc = hwc[-4161,]
+# check the scale :
+
+ncol(hwc)
+boxplot(scale(x = hwc[which(hwc$koi_disposition!=0),-9], center = T, scale = T), las = 2, col = 'gold')
+
+boxplot(scale(x = hwc[,-9], center = T, scale = T), las = 2, col = 'gold')
+
+boxplot(hwc[which(hwc$koi_disposition!=0),], las = 2, col = 'gold',scale=T,center = T)
+hwc$koi_period
+
+# List of features to plot
+features <- c("koi_prad", "koi_period", "koi_teq", "koi_insol", 
+              "koi_steff", "koi_srad", "koi_slogg")
+KOI_table_exo = KOI_table[which(KOI_table$koi_disposition==1),]
+hwc_exo = hwc[which(hwc$koi_disposition==1),]
+
+# Loop through each feature
+for (feature in features) {
+  # Set up the plotting window: 1 row, 2 columns
+  par(mfrow = c(1, 2))
+  
+  # Boxplot for HWC
+  boxplot(hwc_exo[[feature]],
+          main = paste("HWC -", feature),
+          ylab = feature,
+          col = "lightblue",
+          outline = TRUE)
+  
+  # Boxplot for KOI
+  boxplot(KOI_table_exo[[feature]],
+          main = paste("KOI -", feature),
+          ylab = feature,
+          col = "lightgreen",
+          outline = TRUE)
+  cat(mean(KOI_table_exo[[feature]]))
+  cat("--")
+  cat(mean(hwc_exo[[feature]]))
+  
+  # Pause between plots so the user can see each one
+  readline(prompt = "Press [Enter] to show next feature...")
+}
+
+
+library(caret)
+library(randomForest)
+library(xgboost)
+library(dplyr)
+
+set.seed(123)
+
+# Assume hwc_data is your dataset and
+# target is 'P_HABITABLE' (0/1)
+hwc_data = hwc
+# Split data into train and test (e.g., 70-30 split)
+train_index <- createDataPartition(hwc_data$koi_disposition, p = 0.7, list = FALSE)
+train_data <- hwc_data[train_index, ]
+test_data <- hwc_data[-train_index, ]
+
+# Undersample majority class in training set
+minority_class <- train_data %>% filter(koi_disposition == 1)
+majority_class <- train_data %>% filter(koi_disposition == 0)
+
+set.seed(123)
+majority_down <- majority_class %>% sample_n(nrow(minority_class))
+
+train_balanced <- bind_rows(minority_class, majority_down)
+
+# Separate features and labels for XGBoost
+train_matrix <- train_balanced %>% select(-koi_disposition) %>% as.matrix()
+train_label <- train_balanced$koi_disposition
+
+test_matrix <- test_data %>% select(-koi_disposition) %>% as.matrix()
+test_label <- test_data$koi_disposition
+
+# 1) Random Forest
+
+rf_model <- randomForest(as.factor(koi_disposition) ~ ., data = train_balanced)
+rf_preds <- predict(rf_model, newdata = test_data)
+
+confusionMatrix(rf_preds, as.factor(test_label))
+
+# 2) XGBoost
+
+dtrain <- xgb.DMatrix(data = train_matrix, label = as.numeric(train_label)-1)
+dtest <- xgb.DMatrix(data = test_matrix, label = as.numeric(test_label)-1)
+
+params <- list(
+  objective = "binary:logistic",
+  eval_metric = "logloss",
+  max_depth = 6,
+  eta = 0.1
+)
+
+xgb_model <- xgb.train(params, dtrain, nrounds = 100)
+
+xgb_preds_prob <- predict(xgb_model, dtest)
+xgb_preds <- ifelse(xgb_preds_prob > 0.5, 1, 0)
+
+confusionMatrix(factor(xgb_preds), factor(test_label))
+
+# XGBoost performs well ... 
+# let's use it on the KOI dataset : 
+# Select features used in training
+features <- c("koi_prad", "koi_period", "koi_teq", "koi_insol", 
+              "koi_steff", "koi_srad", "koi_slogg")
+setdiff(features, colnames(KOI_table_exo))
+
+# Prepare KOI data
+KOI_table_exo = KOI_table
+KOI_pred_matrix <- KOI_table_exo[, features] %>% as.matrix()
+
+# Create DMatrix for XGBoost
+KOI_dmatrix <- xgb.DMatrix(data = KOI_pred_matrix)
+colnames(KOI_dmatrix)
+colnames(dtrain)
+# Predict using trained model
+KOI_preds_prob <- predict(xgb_model, KOI_dmatrix)
+KOI_preds <- ifelse(KOI_preds_prob > 0.5, 1, 0)
+
+# Attach predictions to the KOI data
+KOI_table_exo$Predicted_Habitable <- KOI_preds
+
+# Optional: View predicted habitables
+table(KOI_table_exo$Predicted_Habitable)
+
+library(ggplot2)
+
+ggplot(KOI_table_exo, aes(x = koi_prad, y = koi_teq, color = factor(Predicted_Habitable))) +
+  geom_point(alpha = 0.7) +
+  labs(title = "Predicted Habitability on KOI Dataset", color = "Predicted\nHabitable") +
+  theme_minimal()
