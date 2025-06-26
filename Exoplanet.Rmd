@@ -820,7 +820,7 @@ train_index.wo <- createDataPartition(KOI_table.wo_incertitudes$koi_disposition,
 train_set.wo <- KOI_table.wo_incertitudes[train_index.wo, ]
 temp_set.wo  <- KOI_table.wo_incertitudes[-train_index.wo, ]
 
-val_index.wo <- createDataPartition(temp_set$koi_disposition, p = 0.5, list = FALSE)
+val_index.wo <- createDataPartition(temp_set.wo$koi_disposition, p = 0.5, list = FALSE)
 val_set.wo <- temp_set.wo[val_index.wo, ]
 test_set.wo <- temp_set.wo[-val_index.wo, ]
 
@@ -1239,6 +1239,7 @@ library(class) # KNN
 ```
 
 ```{r}
+library(caret)
 knn.all <- train(
   koi_disposition ~ ., 
   data = train_set,
@@ -1473,6 +1474,9 @@ We got:
 ```{r}
 varImp(svm.log_f)
 ```
+incertitudes are prevalent for prediction
+then we have prad, impact, teq, steff
+
 
 ###### without incertitudes
 
@@ -1496,12 +1500,16 @@ plot(svm.wo.log)  # plots accuracy vs cost (C) values
 svm_preds.wo.log <- predict(svm.wo.log, newdata = val_set.wo.log)
 confusionMatrix(svm_preds.wo.log, val_set.wo.log$koi_disposition)
 ```
+We got:
+- accuracy: 87%
+- recall: 93%
+- specificity: 90%
 
 
 ```{r}
 varImp(svm.wo.log)
 ```
-
+importance: prad, impact, teq, insol, steff
 
 ###### On log_f after pca 
 
@@ -1772,7 +1780,7 @@ ggplot(var_imp %>% arrange(importance), aes(x = reorder(variable, importance), y
     plot.title = element_text(size = 20)
   )
 ```
-koi_fpflag_co (centroid offset flag) is the most important feature, followed by koi_fpflag_ss (stellar eclipse flag)
+koi_prad
 ```{r}
 ## generate prediction and print the accuracy
 rf_preds <- predict(rf_model, newdata = val_set)
