@@ -618,14 +618,65 @@ for (feature in features) {
 
 # train an model on it : 
 # severe class imbalance 
-install.packages("caret")
+install.packages("DMwR")
 library(DMwR)           # For SMOTE
 library(randomForest)   # For Random Forest
 library(xgboost)        # For XGBoost
 library(caret)          # For data splitting and evaluation
 library(dplyr)
-# SVM : 
+
+
+# split : # Ensure target is factor
+hwc$P_HABITABLE <- as.factor(hwc$P_HABITABLE)
+
+# Split into train/test
+set.seed(42)
+train_index <- createDataPartition(hwc$P_HABITABLE, p = 0.8, list = FALSE)
+train <- hwc[train_index, ]
+test  <- hwc[-train_index, ]
+
+# smote : # Apply SMOTE to training data
+train_smote <- SMOTE(P_HABITABLE ~ ., data = train, perc.over = 300, perc.under = 150)
+
+table(train$P_HABITABLE)
+table(train_smote$P_HABITABLE)
+
+# RF : 
+rf_model <- randomForest(P_HABITABLE ~ ., data = train_smote, ntree = 300, importance = TRUE)
+
+# Predict on test data
+rf_preds <- predict(rf_model, newdata = test)
+
+# Evaluate
+confusionMatrix(rf_preds, test$P_HABITABLE, positive = "1")
+
 
 # XGBoost :
+# Prepare data
+train_x <- train_smote %>% select(-P_HABITABLE)
+train_y <- as.numeric(as.character(train_smote$P_HABITABLE))
+
+test_x <- test %>% select(-P_HABITABLE)
+test_y <- as.numeric(as.character(test$P_HABITABLE))
+
+# Convert to DMatrix
+dtrain <- xgb.DMatrix(data = as.matrix(train_x), label = train_y)
+dtest  <- xgb.DMatrix(data = as.matrix(test_x),  label = test_y)
+
+# Train model
+xgb_model <- xgboost(data = dtrain,
+                     objective = "binary:logistic",
+                     nrounds = 100,
+                     eta = 0.1,
+                     max_depth = 5,
+                     eval_metric = "auc",
+                     verbose = 0)
+
+# Predict probabilities
+xgb_probs <- predict(xgb_model, dtest)
+xgb_preds <- ifelse(xgb_probs > 0.5, 1, 0)
+
+# Evaluation
+confusionMatrix(as.factor(xgb_preds), as.factor(test_y), positive = "1")
 
 
