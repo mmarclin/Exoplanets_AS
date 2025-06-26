@@ -542,7 +542,7 @@ KOI_pca <- data.frame(KOI_pca_scores[,1:13], koi_disposition = KOI_table.log_f$k
 head(KOI_pca)
 
 
-### Habitabily prediction using HWC dataset : 
+### Habitability prediction using HWC dataset : 
 
 hwc = read.csv("C:/Users/antoi/OneDrive/Bureau/AppliedStats/PROJECT EXOPLANETS/hwc.csv")
 head(hwc)
@@ -615,12 +615,6 @@ for (feature in features) {
   readline(prompt = "Press [Enter] to show next feature...")
 }
 
-
-library(caret)
-library(randomForest)
-library(xgboost)
-library(dplyr)
-
 set.seed(123)
 
 # Assume hwc_data is your dataset and
@@ -681,7 +675,7 @@ features <- c("koi_prad", "koi_period", "koi_teq", "koi_insol",
 setdiff(features, colnames(KOI_table_exo))
 
 # Prepare KOI data
-KOI_table_exo = KOI_table
+#KOI_table_exo = KOI_table
 KOI_pred_matrix <- KOI_table_exo[, features] %>% as.matrix()
 
 # Create DMatrix for XGBoost
@@ -698,9 +692,196 @@ KOI_table_exo$Predicted_Habitable <- KOI_preds
 # Optional: View predicted habitables
 table(KOI_table_exo$Predicted_Habitable)
 
-library(ggplot2)
 
 ggplot(KOI_table_exo, aes(x = koi_prad, y = koi_teq, color = factor(Predicted_Habitable))) +
   geom_point(alpha = 0.7) +
   labs(title = "Predicted Habitability on KOI Dataset", color = "Predicted\nHabitable") +
   theme_minimal()
+
+
+ggplot(KOI_table_exo, aes(x = koi_teq, y = ESI, color = factor(Predicted_Habitable))) +
+  geom_point(alpha = 0.7) +
+  labs(title = "Predicted Habitability on KOI Dataset", color = "Predicted\nHabitable") +
+  theme_minimal()
+
+
+### Nice plots : 
+# Assuming you have a vector KOI_preds with values 0 (not habitable) or 1 (habitable)
+library(ggplot2)
+
+KOI_pred_df <- data.frame(Habitability = factor(KOI_preds, labels = c("Not Habitable", "Habitable")))
+
+ggplot(KOI_pred_df, aes(x = Habitability, fill = Habitability)) +
+  geom_bar() +
+  scale_fill_manual(values = c("lightcoral", "lightblue")) +
+  theme_minimal() +
+  labs(title = "Predicted Habitability (KOI Dataset)", x = "", y = "Count") +
+  theme(legend.position = "none")
+
+# Features to plot
+features <- c("koi_prad", "koi_period", "koi_teq", "koi_insol", 
+              "koi_steff", "koi_srad", "koi_slogg")
+
+# Add predicted labels to KOI table if not already done
+KOI_table_exo$habitability_pred <- factor(KOI_preds, labels = c("Not Habitable", "Habitable"))
+
+# Plot boxplots
+library(ggplot2)
+for (feature in features) {
+  p <- ggplot(KOI_table_exo, aes_string(x = "habitability_pred", y = feature, fill = "habitability_pred")) +
+    geom_boxplot(outlier.colour = "red", alpha = 0.7) +
+    scale_fill_manual(values = c("lightcoral", "lightblue")) +
+    theme_minimal() +
+    labs(title = paste("Boxplot of", feature, "by Habitability"), x = "", y = feature) +
+    theme(legend.position = "none")
+  
+  print(p)
+}
+#### 
+ggplot(KOI_table, aes(x = factor(koi_disposition))) +
+  geom_bar(fill = c("skyblue","red")) +
+  labs(title = "Class Distribution (Confirmed vs False Positives)", x = "Disposition", y = "Count") +
+  theme_minimal()
+
+
+
+#### Density plots in dataExploration : # Plot density of ESI by disposition
+ggplot(KOI_table, aes(x = ESI, fill = as.factor(koi_disposition))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density of ESI by KOI Disposition",
+       x = "Earth Similarity Index (ESI)",
+       y = "Density",
+       fill = "Disposition") +
+  theme_minimal()
+
+
+
+# Get feature names (excluding the target/class variable)
+features <- setdiff(names(KOI_table), "koi_disposition")
+
+# Loop through features and plot densities
+for (feature in features) {
+  if (is.numeric(KOI_table[[feature]])) {
+    p <- ggplot(KOI_table, aes_string(x = feature, fill = "as.factor(koi_disposition)")) +
+      geom_density(alpha = 0.5) +
+      labs(
+        title = paste("Density of", feature, "by KOI Disposition"),
+        x = feature,
+        y = "Density",
+        fill = "Disposition"
+      ) +
+      theme_minimal()
+    
+    print(p)  # display the plot
+  }
+}
+
+library(ggplot2)
+library(patchwork)  # install.packages("patchwork") if needed
+
+p1 <- ggplot(KOI_table, aes(x = ESI, fill = as.factor(koi_disposition))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density of ESI by KOI Disposition",
+       x = "Earth Similarity Index (ESI)",
+       y = "Density",
+       fill = "Disposition") +
+  theme_minimal()
+
+p2 <- ggplot(KOI_table, aes(x = koi_slogg, fill = as.factor(koi_disposition))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density of Surface Gravity by KOI Disposition",
+       x = "Log Surface Gravity (koi_slogg)",
+       y = "Density",
+       fill = "Disposition") +
+  theme_minimal()
+
+# Combine side-by-side
+p1 + p2
+#### 3 dplot : 
+
+# Load libraries
+library(MASS)
+library(plotly)
+
+# Clean and filter dataset for relevant features and remove NAs
+data_3d <- na.omit(KOI_table[, c("koi_slogg", "koi_prad", "koi_disposition")])
+
+# Ensure class label is a factor
+data_3d$koi_disposition <- as.factor(data_3d$koi_disposition)
+
+# Create kernel density estimations for each class
+dens_list <- lapply(levels(data_3d$koi_disposition), function(class_label) {
+  class_data <- subset(data_3d, koi_disposition == class_label)
+  kde2d(class_data$koi_slogg, class_data$koi_prad, n = 80)
+})
+
+# Assign colors for each class
+colors <- c("blue", "red")
+names(colors) <- levels(data_3d$koi_disposition)
+
+# Create individual surfaces
+plot <- plot_ly()
+for (i in seq_along(dens_list)) {
+  plot <- add_surface(plot,
+                      x = dens_list[[i]]$x,
+                      y = dens_list[[i]]$y,
+                      z = dens_list[[i]]$z,
+                      showscale = FALSE,
+                      opacity = 0.6,
+                      name = paste("Class", levels(data_3d$koi_disposition)[i]),
+                      surfacecolor = matrix(rep(i, length(dens_list[[i]]$x) * length(dens_list[[i]]$y)), 
+                                            nrow = length(dens_list[[i]]$x)),
+                      colorscale = list(c(0, 1), c(colors[i], colors[i])))
+}
+
+# Layout
+plot <- plot %>%
+  layout(title = "3D Density of koi_slogg vs ESI by Class",
+         scene = list(
+           xaxis = list(title = "koi_slogg"),
+           yaxis = list(title = "ESI"),
+           zaxis = list(title = "Density")
+         ))
+
+# Show plot
+plot
+
+
+####### PLot stellar MAP : 
+KOI_table_full = read.csv("C:/Users/antoi/OneDrive/Bureau/AppliedStats/PROJECT EXOPLANETS/KOI_table_2025.03.23_01.50.59.csv",comment.char = "#",header = TRUE, stringsAsFactors = T)
+
+### Data Cleaning and Preprocessing
+
+# First we need to create the dataset with the target variable and the features 
+# the features are all the variables - those who are not useful for the model
+
+columns_to_remove <- c("kepid", "kepler_name",
+                       "koi_pdisposition", "koi_score",
+                       "koi_teq_err1", "koi_teq_err2", "koi_tce_delivname",
+                       "koi_fpflag_nt", "koi_fpflag_ss", "koi_fpflag_co", "koi_fpflag_ec", # variables that indicate how the unit was classified as FP
+                       "koi_tce_plnt_num") # order in which the object was detected in its star system
+
+KOI_table <- KOI_table_full[, !(names(KOI_table_full) %in% columns_to_remove)]
+
+KOI_table <- KOI_table %>% filter(KOI_table$koi_disposition != "CANDIDATE")
+
+library(ggplot2)
+
+# Replace 'koi_disposition' with the name of your class variable if different
+# Make sure koi_disposition is a factor with meaningful labels
+KOI_table$koi_disposition <- factor(KOI_table$koi_disposition,
+                                    levels = c("FALSE POSITIVE", "CONFIRMED"),
+                                    labels = c("False Positive", "Confirmed"))
+
+# Plot RA vs Dec
+ggplot(KOI_table, aes(x = ra, y = dec, color = koi_disposition)) +
+  geom_point(alpha = 0.7, size = 1.5) +
+  scale_color_manual(values = c("blue",  "red")) +
+  labs(title = "Sky Map of KOIs by Disposition",
+       x = "Right Ascension (degrees)",
+       y = "Declination (degrees)",
+       color = "Disposition") +
+  theme_minimal()
+
+
+
