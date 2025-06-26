@@ -87,8 +87,7 @@ We have to remove the unnecessary, unrelevant columns which are :
   - ra: KIC Right Ascension
   - dec: KIC Declination
   - koi_kepmag: Kepler-band
-
-koi_model_snr: Transit Signal-to-Noise ?
+- koi_model_snr: Transit Signal-to-Noise 
 
 We also don't take into account first the upper and lower bound of some features
 We will include them in our analysis later
@@ -110,7 +109,7 @@ column_rm = c("kepid","kepoi_name","kepler_name","koi_pdisposition",
               "koi_teq_err1","koi_teq_err2","koi_tce_delivname",
               "koi_fpflag_nt", "koi_fpflag_ss", "koi_fpflag_co", "koi_fpflag_ec",
               "ra", "dec", "koi_kepmag", 
-              "koi_tce_plnt_num")
+              "koi_tce_plnt_num","koi_model_snr")
 
 column_incertitudes = c("koi_period_err1", "koi_period_err2", "koi_time0bk_err1", "koi_time0bk_err2", 
                         "koi_impact_err1", "koi_impact_err2", "koi_duration_err1", "koi_duration_err2", 
@@ -183,7 +182,7 @@ dim(KOI_table.wo_incertitudes)
 attach(KOI_table)
 ```
 
-##### Earth Similarity Index 
+#### Earth Similarity Index 
 
 The  ESI (Earth Similarity Index) measures how similar a planet is to Earth, ranging from 0 (not similar) to 1 (identical).
 
@@ -396,12 +395,12 @@ First 3 principal components :
 
 ```{r}
 # 3D Scatter Plot
-df_pca <- data.frame(pca$x[, 1:3], label = koi_disposition)
-plot3d(df_pca$PC1, df_pca$PC2, df_pca$PC3, 
-       col = rainbow(length(unique(df_pca$label)))[as.factor(df_pca$label)],
-       size = 5, 
-       xlab = "PC1", ylab = "PC2", zlab = "PC3", 
-       main = "3D PCA Visualization")
+#df_pca <- data.frame(pca$x[, 1:3], label = koi_disposition)
+#plot3d(df_pca$PC1, df_pca$PC2, df_pca$PC3, 
+#       col = rainbow(length(unique(df_pca$label)))[as.factor(df_pca$label)],
+#       size = 5, 
+#       xlab = "PC1", ylab = "PC2", zlab = "PC3", 
+#       main = "3D PCA Visualization")
 ```
 
 First 5 principal components :
@@ -1348,8 +1347,6 @@ confusionMatrix(knn_preds_wo.log, val_set.wo.log$koi_disposition)
 vip(knn.wo.log)
 ```
 
-=======
->>>>>>> d5f1963412a78a42b2c20c64f4756875dca868b4
 
 #### SVM
 
@@ -1536,7 +1533,7 @@ varImp(svm.pca)
 
 #### XGBoost 
 
-```{r}
+```{r warning=FALSE}
 library(xgboost)
 ```
 
@@ -2101,6 +2098,8 @@ dim(features.exo)
 
 ##### full dataset
 
+###### Can we separater false and true exoplanets ?
+
 ```{r}
 library(cluster)
 ```
@@ -2321,6 +2320,7 @@ plot_ly(
 
 There is 4 types of exoplanets : Gas giant, Neptunian, super-Earth, and terrestrial
 
+###### What are the different types of exoplanets ?
 
 Compute the dissimilarity matrix
 ```{r}
@@ -2491,6 +2491,99 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = cluster)) +
   theme_minimal()
 
 ```
+
+###### MANOVA
+
+Add Cluster Labels to Your Dataset
+Explore Characteristics of Each Cluster
+```{r}
+exo_clustered <- cbind(features.exo, Cluster = as.factor(cluster_labels))
+exo_clustered %>%
+  group_by(Cluster) %>%
+  summarise(across(where(is.numeric), list(mean = mean, sd = sd), .names = "{.col}_{.fn}"))
+```
+
+Visualize characteristics
+```{r}
+library(reshape2)
+library(ggplot2)
+
+# Melt the data for plotting
+exo_melt <- melt(exo_clustered, id.vars = "Cluster")
+
+# Boxplot
+ggplot(exo_melt, aes(x = Cluster, y = value, fill = Cluster)) +
+  geom_boxplot() +
+  facet_wrap(~variable, scales = "free", ncol = 3) +
+  theme_minimal() +
+  labs(title = "Feature Distributions by Cluster")
+
+```
+
+MANOVA
+```{r}
+# Choose numeric variables only
+numeric_vars <- select(exo_clustered, -Cluster)
+
+# MANOVA
+manova_fit <- manova(as.matrix(numeric_vars) ~ Cluster, data = exo_clustered)
+summary(manova_fit, test = "Wilks")
+
+summary.aov(manova_fit)
+```
+
+###### LDA on clusters
+
+```{r warning=FALSE}
+library(MASS)
+lda_fit <- lda(Cluster ~ ., data = exo_clustered)
+lda_fit
+```
+```{r}
+# Predict LDA scores (linear discriminant projections)
+lda_pred <- predict(lda_fit)
+
+# Create a data frame with LDA components
+lda_df <- data.frame(LD1 = lda_pred$x[, 1],
+                     LD2 = lda_pred$x[, 2],
+                     Cluster = exo_clustered$Cluster)
+
+# Plot
+library(ggplot2)
+
+ggplot(lda_df, aes(x = LD1, y = LD2, color = Cluster)) +
+  geom_point(alpha = 0.7, size = 2) +
+  theme_minimal() +
+  labs(title = "LDA Projection of Clusters", x = "LD1", y = "LD2")
+```
+###### Verify assumptions on MANOVA and LDA
+
+```{r}
+library(MVN)
+
+# For each cluster
+for (cl in unique(exo_clustered$Cluster)) {
+  cat("\nCluster:", cl, "\n")
+  cluster_data <- subset(exo_clustered, Cluster == cl)[, -ncol(exo_clustered)]  # exclude 'Cluster'
+  
+  print(mvn(cluster_data)$multivariate_normality)
+}
+
+```
+
+```{r}
+# List to store covariance matrices
+cov_matrices <- list()
+
+for (cl in unique(exo_clustered$Cluster)) {
+  cluster_data <- subset(exo_clustered, Cluster == cl)[, -ncol(exo_clustered)]  # remove 'Cluster'
+  cov_matrices[[as.character(cl)]] <- cov(cluster_data)
+}
+
+# Example: view covariance matrix of cluster 1
+cov_matrices[["1"]]
+```
+
 #### K-means
 
 ```{r}
