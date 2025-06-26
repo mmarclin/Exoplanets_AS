@@ -1491,7 +1491,7 @@ svm_preds.log_f <- predict(svm.log_f, newdata = val_set.log_f)
 confusionMatrix(svm_preds.log_f, val_set.log_f$koi_disposition)
 ```
 We got:
-- accuracy: 92%
+- accuracy: 89,72%
 - recall: 93%
 - specificity: 89%
 
@@ -1970,12 +1970,12 @@ koi_fpflag_co (centroid offset flag) is still the most important feature, with a
 ```{r}
 ## generate prediction and print the accuracy
 rf_preds_log_f <- predict(rf_model_log_f, newdata = val_set.log_f)
-rf_preds_log_f <- factor(rf_model_log_f, levels = levels(val_set.log_f$koi_disposition))
+rf_preds_log_f <- factor(rf_preds_log_f, levels = levels(val_set.log_f$koi_disposition))
 accuracy <- mean(rf_preds_log_f == val_set.log_f$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds_log_f, val_set.log_f$koi_disposition))
 ```
-accuracy: 98.62%
+accuracy: 97.66% 
 
 ##### without incertitudes_data_log
 ```{r}
@@ -1984,8 +1984,8 @@ cl <- makePSOCKcluster(detectCores() - 1)
 registerDoParallel(cl)
 library(caret)
 control_wo_log <- trainControl(method = "cv", number = 5)
-rf_model_wo_log <- train(koi_disposition ~ .,  data = train_set.wo_log, method = "rf", trControl = control_log_f, metric = 'Accuracy',
-            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set.wo_log) - 1))), ntree = 100)
+rf_model_wo_log <- train(koi_disposition ~ .,  data = train_set.wo.log, method = "rf", trControl = control_log_f, metric = 'Accuracy',
+            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set.wo.log) - 1))), ntree = 100)
 print(rf_model_wo_log$finalModel)
 stopCluster(cl)
 ```
@@ -2007,19 +2007,12 @@ ggplot(var_imp_wo_log %>% arrange(importance), aes(x = reorder(variable, importa
 ```
 koi_prad is the most important feature, followed by koi_model_snr
 ```{r}
-<<<<<<< HEAD
 rf_preds_wo_log <- predict(rf_model_wo_log, newdata = val_set.wo.log)
 rf_preds_wo_log <- factor(rf_preds_wo_log, levels = levels(val_set.wo.log$koi_disposition))
 accuracy <- mean(rf_preds_wo_log == val_set.wo.log$koi_disposition) * 100
-=======
-rf_preds_wo_log <- predict(rf_model_wo_log, newdata = val_set.wo_log)
-rf_preds_wo_log <- factor(rf_preds_wo_log, levels = levels(val_set.wo_log$koi_disposition))
-accuracy <- mean(rf_preds_wo_log == val_set.wo_log$koi_disposition) * 100
->>>>>>> b5c76e2ff09f0b03f109a9c33353d310d8ada758
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
-print(confusionMatrix(rf_preds_wo_log, val_set.wo_log$koi_disposition))
+print(confusionMatrix(rf_preds_wo_log, val_set.wo.log$koi_disposition))
 ```
-<<<<<<< HEAD
 accuracy: 89,91%
 
 ##### Results random forest
@@ -2061,18 +2054,13 @@ ggplot(performance_df, aes(x = Metric, y = Value, fill = Model)) +
   theme_minimal()
 ```
 
-=======
 accuracy: 90.56%
->>>>>>> b5c76e2ff09f0b03f109a9c33353d310d8ada758
 #### Logistic regression
 
 ##### With outliers
 ##### With incertitudes
-<<<<<<< HEAD
-=======
 
 ###### Without class weights
->>>>>>> b5c76e2ff09f0b03f109a9c33353d310d8ada758
 
 Fitting the model on the dataset
 ```{r}
@@ -2278,7 +2266,7 @@ library(ggplot2)
 ggplot(accuracy_df, aes(x = Model, y = Accuracy, fill = Model)) +
   geom_col(width = 0.6) +
   ylim(0, 1) +
-  labs(title = "Accuracy Comparison of Models",
+  labs(title = "Accuracy Comparison of Models: logistic regression",
        x = "Model",
        y = "Accuracy") +
   theme_minimal() +
