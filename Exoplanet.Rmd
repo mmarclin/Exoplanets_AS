@@ -286,12 +286,21 @@ for (feature in KOI_table){
 dim(koi_disposition)
 ```
 
-```{r}
+```{r warning=FALSE}
 ### Pairplot for some features
-#pairs(KOI_table)
-#selected_features <- KOI_table[, c("koi_fpflag_nt", "koi_period", "koi_duration", "koi_teq", #"koi_steff", "koi_disposition")]
-#ggpairs(selected_features, aes(color = "koi_disposition"))
-#pairs(selected_features, aes(color="koi_disposition"))
+# Ensure koi_disposition is a factor
+KOI_table$koi_disposition <- as.factor(KOI_table$koi_disposition)
+
+# Subset the features + class
+selected_features <- KOI_table[, c("koi_period", "koi_prad", "koi_duration", "koi_teq", "koi_disposition")]
+
+# Plot
+ggpairs(
+  selected_features,
+  aes(color = koi_disposition, alpha = 0.5),
+  upper = list(continuous = wrap("cor", size = 3)),
+  lower = list(continuous = wrap("points", size = 0.5))
+)
 ```
 
 ##### Solutions 
@@ -713,6 +722,20 @@ pvalues <- sapply(names(response_vars), function(var) {
 pvalues
 ```
 The mean of the 2 groups is different for each feature. 
+
+```{r warning=FALSE}
+### Pairplot for some features
+# Subset the features + class
+selected_features <- KOI_table.log_f[, c("koi_period", "koi_prad", "koi_duration", "koi_teq", "koi_disposition")]
+
+# Plot
+ggpairs(
+  selected_features,
+  aes(color = koi_disposition, alpha = 0.5),
+  upper = list(continuous = wrap("cor", size = 3)),
+  lower = list(continuous = wrap("points", size = 0.5))
+)
+```
 
 ### Classification
 
@@ -2091,6 +2114,15 @@ features <- KOI_table.wo_incertitudes.log[,-13]
 dim(features)
 
 features.exo <- KOI_table.wo_incertitudes.log[KOI_table.wo_incertitudes.log$koi_disposition==1,-13]
+features_exo <- scale(features.exo)
+dim(features.exo)
+```
+```{r}
+class <- as.factor(KOI_table.log_f$koi_disposition)
+features <- KOI_table.log_f[,-which(names(KOI_table_log_f) == "koi_disposition")]
+dim(features)
+
+features.exo <- KOI_table.log_f[KOI_table.log_f$koi_disposition==1,-which(names(KOI_table.log_f) == "koi_disposition")]
 dim(features.exo)
 ```
 
@@ -2381,20 +2413,8 @@ plot(
 rect.hclust(D.exo.ew, k = 4)
 ```
 ```{r}
-plot(
-  D.exo.ew,
-  main = 'euclidean-ward',
-  hang = -0.1,
-  xlab = '',
-  labels = F,
-  cex = 0.6,
-  sub = ''
-)
-rect.hclust(D.exo.ew, k = 4)
-```
-```{r}
 # Cut tree into k clusters
-cluster_labels <- cutree(D.exo.ew, k = 4)
+cluster_labels <- cutree(D.exo.ew, k = 2)
 cluster_labels
 ```
 
@@ -2424,6 +2444,54 @@ ggplot(df, aes(x = "", y = Count, fill = factor(Cluster))) +
   labs(title = "Cluster Distribution", fill = "Cluster") +
   theme_void()
 ```
+```{r}
+# Build the data frame
+plot_df <- features.exo
+plot_df$Cluster <- as.factor(cluster_labels)  # make sure it's a factor
+
+# Create the plot
+ggplot(plot_df, aes(x = koi_teq, y = koi_prad, color = Cluster)) +
+  geom_point(alpha = 0.7, size = 2) +
+  labs(
+    title = "Clusters of Exoplanets by Radius and Temperature",
+    x = "Equilibrium Temperature (koi_teq)",
+    y = "Planet Radius (koi_prad)",
+    color = "Cluster"
+  ) +
+  theme_minimal()
+
+# Create the plot
+ggplot(plot_df, aes(x = ESI, y = koi_prad, color = Cluster)) +
+  geom_point(alpha = 0.7, size = 2) +
+  labs(
+    title = "Clusters of Exoplanets by Radius and ESI",
+    x = "ESI",
+    y = "Planet Radius (koi_prad)",
+    color = "Cluster"
+  ) +
+  theme_minimal()
+
+# Create the plot
+ggplot(plot_df, aes(x = ESI, y = koi_teq, color = Cluster)) +
+  geom_point(alpha = 0.7, size = 2) +
+  labs(
+    title = "Clusters of Exoplanets by Radius and ESI",
+    x = "ESI",
+    y = "Planet Radius (koi_prad)",
+    color = "Cluster"
+  ) +
+  theme_minimal()
+
+ggplot(plot_df, aes(x = koi_period, y = koi_teq, color = Cluster)) +
+  geom_point(alpha = 0.7, size = 2) +
+  labs(
+    title = "Clusters of Exoplanets by Radius and ESI",
+    x = "Insolation Flux",
+    y = "Planet Radius (koi_prad)",
+    color = "Cluster"
+  ) +
+  theme_minimal()
+```
 
 
 ```{r}
@@ -2448,6 +2516,41 @@ axis(1,
      labels = 1:ncol(features.exo),
      las = 2)
 
+# PC variance
+barplot(
+  pca$sdev^2,
+  las = 2,
+  main = 'Principal components',
+  ylim = c(0, 10),
+  ylab = 'Variances'
+)
+# Original variance
+barplot(
+  sapply(features.exo, sd)^2,
+  las = 2,
+  main = 'Original variables',
+  ylim = c(0, 5),
+  ylab = 'Variances'
+)
+
+library(tidyr)
+# Loadings
+loadings <- pca$rotation[, 1:4]  # get loadings for PC1 to PC4
+head(loadings)  # view top variables
+loadings_df <- as.data.frame(loadings)
+loadings_df$Variable <- rownames(loadings_df)
+
+loadings_long <- loadings_df %>%
+  pivot_longer(cols = starts_with("PC"), names_to = "PC", values_to = "Loading")
+
+# Plot
+ggplot(loadings_long, aes(x = reorder(Variable, abs(Loading)), y = Loading, fill = PC)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ PC, scales = "free_y") +
+  coord_flip() +
+  labs(title = "Loadings for First 4 Principal Components",
+       x = "Variables", y = "Loading") +
+  theme_minimal()
 
 # Create data frame with first 2 PCs and cluster labels
 pca_df <- data.frame(PC1 = pca$x[, 1],
@@ -2460,14 +2563,18 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = Cluster)) +
   labs(title = "Clusters Visualized in PCA Space") +
   theme_minimal() +
   theme(legend.position = "right")
-
+```
+```{r}
 # 3D
+library(plotly)
+
 pca_3d_df <- data.frame(
   PC1 = pca$x[, 1],
   PC2 = pca$x[, 2],
   PC3 = pca$x[, 3],
   Cluster = as.factor(cluster_labels)
 )
+
 plot_ly(pca_3d_df, 
         x = ~PC1, y = ~PC2, z = ~PC3, 
         color = ~Cluster, 
@@ -2475,7 +2582,15 @@ plot_ly(pca_3d_df,
         type = "scatter3d", 
         mode = "markers",
         marker = list(size = 3)) %>%
-  layout(title = "3D PCA Plot Colored by Cluster")
+  layout(
+    scene = list(
+      xaxis = list(title = "PC1"),
+      yaxis = list(title = "PC2"),
+      zaxis = list(title = "PC3")
+    ),
+    title = list(text = "3D PCA Plot Colored by Cluster")
+  )
+
 ```
 
 
