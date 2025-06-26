@@ -286,21 +286,12 @@ for (feature in KOI_table){
 dim(koi_disposition)
 ```
 
-```{r warning=FALSE}
+```{r}
 ### Pairplot for some features
-# Ensure koi_disposition is a factor
-KOI_table$koi_disposition <- as.factor(KOI_table$koi_disposition)
-
-# Subset the features + class
-selected_features <- KOI_table[, c("koi_period", "koi_prad", "koi_duration", "koi_teq", "koi_disposition")]
-
-# Plot
-ggpairs(
-  selected_features,
-  aes(color = koi_disposition, alpha = 0.5),
-  upper = list(continuous = wrap("cor", size = 3)),
-  lower = list(continuous = wrap("points", size = 0.5))
-)
+#pairs(KOI_table)
+#selected_features <- KOI_table[, c("koi_fpflag_nt", "koi_period", "koi_duration", "koi_teq", #"koi_steff", "koi_disposition")]
+#ggpairs(selected_features, aes(color = "koi_disposition"))
+#pairs(selected_features, aes(color="koi_disposition"))
 ```
 
 ##### Solutions 
@@ -635,7 +626,8 @@ we that this feature ( period error 1 and 2 ) still have a lot of outliers after
 log transform and capping, we can simply remove them 
 since they are not very discriminative : data_log_f
 ```{r}
-data_log_f = data_log[,-c(colnames(data_log)==c("koi_period_err2","koi_period_err1"))]
+colnames(data_log_f)
+data_log_f = data_log[,-c(2,3)]
 ```
 
 Comparison of boxplot fro 1 feature : 
@@ -722,20 +714,6 @@ pvalues <- sapply(names(response_vars), function(var) {
 pvalues
 ```
 The mean of the 2 groups is different for each feature. 
-
-```{r warning=FALSE}
-### Pairplot for some features
-# Subset the features + class
-selected_features <- KOI_table.log_f[, c("koi_period", "koi_prad", "koi_duration", "koi_teq", "koi_disposition")]
-
-# Plot
-ggpairs(
-  selected_features,
-  aes(color = koi_disposition, alpha = 0.5),
-  upper = list(continuous = wrap("cor", size = 3)),
-  lower = list(continuous = wrap("points", size = 0.5))
-)
-```
 
 ### Classification
 
@@ -842,7 +820,7 @@ train_index.wo <- createDataPartition(KOI_table.wo_incertitudes$koi_disposition,
 train_set.wo <- KOI_table.wo_incertitudes[train_index.wo, ]
 temp_set.wo  <- KOI_table.wo_incertitudes[-train_index.wo, ]
 
-val_index.wo <- createDataPartition(temp_set.wo$koi_disposition, p = 0.5, list = FALSE)
+val_index.wo <- createDataPartition(temp_set$koi_disposition, p = 0.5, list = FALSE)
 val_set.wo <- temp_set.wo[val_index.wo, ]
 test_set.wo <- temp_set.wo[-val_index.wo, ]
 
@@ -1261,7 +1239,6 @@ library(class) # KNN
 ```
 
 ```{r}
-library(caret)
 knn.all <- train(
   koi_disposition ~ ., 
   data = train_set,
@@ -1494,9 +1471,6 @@ We got:
 ```{r}
 varImp(svm.log_f)
 ```
-incertitudes are prevalent for prediction
-then we have prad, impact, teq, steff
-
 
 ###### without incertitudes
 
@@ -1520,16 +1494,12 @@ plot(svm.wo.log)  # plots accuracy vs cost (C) values
 svm_preds.wo.log <- predict(svm.wo.log, newdata = val_set.wo.log)
 confusionMatrix(svm_preds.wo.log, val_set.wo.log$koi_disposition)
 ```
-We got:
-- accuracy: 87%
-- recall: 93%
-- specificity: 90%
 
 
 ```{r}
 varImp(svm.wo.log)
 ```
-importance: prad, impact, teq, insol, steff
+
 
 ###### On log_f after pca 
 
@@ -1553,101 +1523,13 @@ plot(svm.pca)  # plots accuracy vs cost (C) values
 svm_preds.pca <- predict(svm.pca, newdata = val_set.pca)
 confusionMatrix(svm_preds.pca, val_set.pca$koi_disposition)
 ```
-We got:
-- accuracy: 92%
-- recall: 93%
-- specificity: 89%
 
 
 ```{r}
 varImp(svm.pca)
 ```
-importance: comp2,comp4, comp1, comp6
 
 ##### Results SVM
-```{r}
-library(caret)
-library(pROC)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-
-library(kernlab)
-
-svm <- ksvm(koi_disposition ~ ., 
-            data = train_set, 
-            kernel = "rbfdot", 
-            prob.model = TRUE)
-
-svm_pred <- predict(svm, newdata = test_set)
-svm_pred_wo <- predict(svm.wo, newdata = test_set.wo)
-svm_pred_log_f <- predict(svm.log_f, newdata = test_set.log_f)
-svm_pred_wo_log <- predict(svm.wo.log, newdata = test_set.wo.log)
-
-svm_prob <- predict(svm, newdata = test_set, type = "prob")[,"1"]
-svm_prob_wo <- predict(svm.wo, newdata = test_set.wo, type = "prob")[,"1"]
-svm_prob_log_f <- predict(svm.log_f, newdata = test_set.log_f, type = "prob")[,"1"]
-svm_prob_wo_log <- predict(svm.wo.log, newdata = test_set.wo.log, type = "prob")[,"1"]
-
-get_metrics <- function(cm) {
-  acc <- cm$overall["Accuracy"]
-  recall <- cm$byClass["Sensitivity"]
-  prec <- cm$byClass["Precision"]
-  f1 <- cm$byClass["F1"]
-  return(c(Accuracy = acc, Recall = recall, Precision = prec, F1 = f1))
-}
-
-cm1 <- confusionMatrix(svm_pred, test_set$koi_disposition)
-cm2 <- confusionMatrix(svm_pred_wo, test_set.wo$koi_disposition)
-cm3 <- confusionMatrix(svm_pred_log_f, test_set.log_f$koi_disposition)
-cm4 <- confusionMatrix(svm_pred_wo_log, test_set.wo.log$koi_disposition)
-
-metrics1 <- get_metrics(cm1)
-metrics2 <- get_metrics(cm2)
-metrics3 <- get_metrics(cm3)
-metrics4 <- get_metrics(cm4)
-
-performance_df <- data.frame(
-  Metric = rep(c("Accuracy", "Recall", "Precision", "F1"), 4),
-  Value = c(metrics1, metrics2, metrics3, metrics4),
-  Model = rep(
-    c("All features", "Without uncertainties", "With log_f", "Without uncertainties + log_f"),
-    each = 4
-  )
-)
-
-# Barplot
-ggplot(performance_df, aes(x = Metric, y = Value, fill = Model)) +
-  geom_col(position = "dodge") +
-  ylim(0, 1) +
-  labs(title = "Comparative Performance of SVM Models",
-       y = "Score", x = "Metric") +
-  scale_fill_brewer(palette = "Set1") +
-  theme_minimal()
-
-# ROC curve and AUC 
-library(pROC)
-roc1 <- roc(test_set$koi_disposition, svm_prob, levels = c("0", "1"), direction = "<")
-plot(roc1)
-auc(roc1)
-roc2 <- roc(test_set.wo$koi_disposition, svm_prob_wo, levels = rev(levels(test_set.wo$koi_disposition)))
-roc3 <- roc(test_set.log_f$koi_disposition, svm_prob_log_f, levels = rev(levels(test_set.log_f$koi_disposition)))
-roc4 <- roc(test_set.wo.log$koi_disposition, svm_prob_wo_log, levels = rev(levels(test_set.wo.log$koi_disposition)))
-
-# Plot ROC curves
-plot(roc1, col = "blue", main = "ROC Curves - SVM Models")
-lines(roc2, col = "red")
-lines(roc3, col = "green")
-lines(roc4, col = "purple")
-legend("bottomright", legend = c("All features", "Without uncertainties", "With log_f", "Without uncertainties + log_f"),
-       col = c("blue", "red", "green", "purple"), lwd = 2)
-
-# Print AUC values
-cat("AUC All features:", auc(roc1), "\n")
-cat("AUC Without uncertainties:", auc(roc2), "\n")
-cat("AUC With log_f:", auc(roc3), "\n")
-cat("AUC Without uncertainties + log_f:", auc(roc4), "\n")
-```
 
 
 #### XGBoost 
@@ -1750,7 +1632,6 @@ cat("Test Accuracy:", round(accuracy * 100, 2), "%\n")
 
 #### Decision Tree
 
-#### with outliers
 ##### With incertitudes
 ```{r}
 library(rpart)
@@ -1781,8 +1662,7 @@ rpart.plot(tree_model_wo)
 error: 14.2%, accuracy: 85,98%
 important variables: koi_prad, koi_model_snr
 
-#### without outliers
-##### With incertitudes
+##### With data_log_f
 ```{r}
 tree_model_log_f <- rpart(koi_disposition ~ ., data = train_set.log_f, method = "class")
 summary(tree_model_log_f)
@@ -1795,12 +1675,12 @@ rpart.plot(tree_model_log_f)
 error: 8,59%, accuracy: 91,40%
 important variables: koi_staff_err1, koi_prad
 
-##### Without incertitudes
+##### Without incertitudes_data_log
 ```{r}
-tree_model_wo_log <- rpart(koi_disposition ~ ., data = train_set.wo.log, method = "class")
+tree_model_wo_log <- rpart(koi_disposition ~ ., data = train_set.wo_log, method = "class")
 summary(tree_model_wo_log)
-tree_pred_wo_log <- predict(tree_model_wo_log, newdata = val_set.wo.log, type = "class")
-table(Predicted = tree_pred_wo_log, Actual = val_set.wo.log$koi_disposition)
+tree_pred_wo_log <- predict(tree_model_wo_log, newdata = val_set.wo_log, type = "class")
+table(Predicted = tree_pred_wo_log, Actual = val_set.wo_log$koi_disposition)
 ```
 ```{r}
 rpart.plot(tree_model_wo_log)
@@ -1808,31 +1688,20 @@ rpart.plot(tree_model_wo_log)
 error: 14,00%, accuracy: 85,98%
 important variables: koi_prad, koi_model_snr
 
-##### Results decision trees
+##### Accuracy and comparison of the decision trees
 ```{r}
 # Accuracy 
 acc_tree <- mean(tree_pred == val_set$koi_disposition)
 acc_tree_wo <- mean(tree_pred_wo == val_set.wo$koi_disposition)
 acc_tree_log_f <- mean(tree_pred_log_f == val_set.log_f$koi_disposition)
-acc_tree_wo_log <- mean(tree_pred_wo_log == val_set.wo.log$koi_disposition)
+acc_tree_wo_log <- mean(tree_pred_wo_log == val_set.wo_log$koi_disposition)
  
 # comparison table
 accuracy_table <- data.frame(
-  model = c("All features", "Without uncertainties", "With log_f", "Without uncertainties + log_f"),
+  model = c("with incertitudes", "without incertitudes", "with data_log_f", "with incertitudes__log"),
   accuracy = c(acc_tree, acc_tree_wo, acc_tree_log_f, acc_tree_wo_log)
 )
 print(accuracy_table)
-
-library(ggplot2)
-ggplot(accuracy_table, aes(x = model, y = accuracy, fill = model)) +
-  geom_col(width = 0.6) +
-  ylim(0, 1) +
-  labs(title = "Decision Tree Accuracy Comparison",
-       x = "Model",
-       y = "Accuracy") +
-  scale_fill_brewer(palette = "Set2") +
-  theme_minimal() +
-  theme(legend.position = "none")
 ```
 
 ```{r}
@@ -1842,7 +1711,7 @@ library(caret)
 cm1 <- confusionMatrix(tree_pred,        reference = val_set$koi_disposition)
 cm2 <- confusionMatrix(tree_pred_wo,     reference = val_set.wo$koi_disposition)
 cm3 <- confusionMatrix(tree_pred_log_f,  reference = val_set.log_f$koi_disposition)
-cm4 <- confusionMatrix(tree_pred_wo_log, reference = val_set.wo.log$koi_disposition)
+cm4 <- confusionMatrix(tree_pred_wo_log, reference = val_set.wo_log$koi_disposition)
 
 # Estrai balanced accuracy, precision, recall, F1
 get_metrics <- function(cm) {
@@ -1861,7 +1730,7 @@ metrics3 <- get_metrics(cm3)
 metrics4 <- get_metrics(cm4)
 
 comparison_table <- data.frame(
-  Model = c("All features", "Without uncertainties", "With log_f", "Without uncertainties + log_f"),
+  Model = c("with incertitudes", "without incertitudes", "with data_log_f", "with incertitudes_log"),
   Accuracy = c(metrics1["Accuracy.Accuracy"], metrics2["Accuracy.Accuracy"], metrics3["Accuracy.Accuracy"], metrics4["Accuracy.Accuracy"]),
   Balanced_Accuracy = c(metrics1["Balanced_Accuracy.Balanced Accuracy"], metrics2["Balanced_Accuracy.Balanced Accuracy"], metrics3["Balanced_Accuracy.Balanced Accuracy"], metrics4["Balanced_Accuracy.Balanced Accuracy"]),
   Precision = c(metrics1["Precision.Precision"], metrics2["Precision.Precision"], metrics3["Precision.Precision"], metrics4["Precision.Precision"]),
@@ -1873,7 +1742,6 @@ print(comparison_table)
 
 #### Random forest
 
-#### with outliers
 ##### with incertitudes
 ```{r}
 library(doParallel)
@@ -1902,7 +1770,7 @@ ggplot(var_imp %>% arrange(importance), aes(x = reorder(variable, importance), y
     plot.title = element_text(size = 20)
   )
 ```
-koi_prad
+koi_fpflag_co (centroid offset flag) is the most important feature, followed by koi_fpflag_ss (stellar eclipse flag)
 ```{r}
 ## generate prediction and print the accuracy
 rf_preds <- predict(rf_model, newdata = val_set)
@@ -1912,7 +1780,6 @@ cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds, val_set$koi_disposition))
 ```
 accuracy: 98.75%
-importance: incertitudes, koi_prad
 
 ##### without incertitudes
 ```{r}
@@ -1953,8 +1820,7 @@ print(confusionMatrix(rf_preds_wo, val_set.wo$koi_disposition))
 ```
 accuracy: 90.84%
 
-#### without outliers
-##### with incertudes
+##### without data_log_f
 ```{r}
 library(doParallel)
 cl <- makePSOCKcluster(detectCores() - 1)
@@ -1982,25 +1848,25 @@ ggplot(var_imp_log_f %>% arrange(importance), aes(x = reorder(variable, importan
     plot.title = element_text(size = 20)
   )
 ```
-importance: incertitudes, next koi_prad
+koi_fpflag_co (centroid offset flag) is still the most important feature, with a greater weight
 ```{r}
 ## generate prediction and print the accuracy
 rf_preds_log_f <- predict(rf_model_log_f, newdata = val_set.log_f)
-rf_preds_log_f <- factor(rf_preds_log_f, levels = levels(val_set.log_f$koi_disposition))
-accuracy <- mean(rf_preds_log_f == val_set.log_f$koi_disposition) * 100
+rf_preds_log_f <- factor(rf_model_log_f, levels = levels(val_set.log_f$koi_disposition))
+accuracy <- mean(rf_preds_log_f == val_set.log_f$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds_log_f, val_set.log_f$koi_disposition))
 ```
 
-##### without incertitudes
+##### without incertitudes_data_log
 ```{r}
 library(doParallel)
 cl <- makePSOCKcluster(detectCores() - 1)
 registerDoParallel(cl)
 library(caret)
 control_wo_log <- trainControl(method = "cv", number = 5)
-rf_model_wo_log <- train(koi_disposition ~ .,  data = train_set.wo.log, method = "rf", trControl = control_wo_log, metric = 'Accuracy',
-            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set.wo.log) - 1))), ntree = 100)
+rf_model_wo_log <- train(koi_disposition ~ .,  data = train_set.wo_log, method = "rf", trControl = control_log_f, metric = 'Accuracy',
+            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set.wo_log) - 1))), ntree = 100)
 print(rf_model_wo_log$finalModel)
 stopCluster(cl)
 ```
@@ -2020,65 +1886,19 @@ ggplot(var_imp_wo_log %>% arrange(importance), aes(x = reorder(variable, importa
     plot.title = element_text(size = 20)
   )
 ```
-koi_prad is the most important feature, followed by koi_model_snr and koi_impact
+koi_prad is the most important feature, followed by koi_model_snr
 ```{r}
-rf_preds_wo_log <- predict(rf_model_wo_log, newdata = val_set.log_f)
-rf_preds_wo_log <- factor(rf_preds_wo_log, levels = levels(val_set.wo.log$koi_disposition))
-accuracy <- mean(rf_preds_wo_log == val_set.wo.log$koi_disposition) * 100
+rf_preds_wo_log <- predict(rf_model_wo_log, newdata = val_set.wo_log)
+rf_preds_wo_log <- factor(rf_preds_wo_log, levels = levels(val_set.wo_log$koi_disposition))
+accuracy <- mean(rf_preds_wo_log == val_set.wo_log$koi_disposition) * 100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
-print(confusionMatrix(rf_preds_wo_log, val_set.wo.log$koi_disposition))
+print(confusionMatrix(rf_preds_wo_log, val_set.wo_log$koi_disposition))
 ```
 accuracy: 90.56%
-
-##### Results random forest
-```{r}
-rf_preds <- factor(rf_preds, levels = levels(val_set$target))
-rf_preds_wo <- factor(rf_preds_wo, levels = levels(val_set.wo$target))
-rf_preds_log_f <- factor(rf_preds_log_f, levels = levels(val_set.log_f$target))
-rf_preds_wo_log <- factor(rf_preds_wo_log, levels = levels(val_set.wo.log$target))
-
-rf_preds <- factor(rf_preds, levels = levels(val_set$target))
-
-# Crea le confusion matrix
-cm1 <- confusionMatrix(rf_preds, val_set$target)
-cm2 <- confusionMatrix(rf_preds_wo, val_set.wo$target)
-cm3 <- confusionMatrix(rf_preds_log_f, val_set.log_f$target)
-cm4 <- confusionMatrix(rf_preds_wo_log, val_set.wo.log$target)
-get_metrics <- function(cm) {
-  acc <- cm$overall["Accuracy"]
-  sens <- cm$byClass["Sensitivity"]
-  spec <- cm$byClass["Specificity"]
-  return(c(Accuracy = acc, Sensitivity = sens, Specificity = spec))
-}
-
-metrics1 <- get_metrics(cm1)
-metrics2 <- get_metrics(cm2)
-metrics3 <- get_metrics(cm3)
-metrics4 <- get_metrics(cm4)
-
-# Crea il data frame per il plot
-performance_df <- data.frame(
-  Metric = rep(c("Accuracy", "Sensitivity", "Specificity"), 4),
-  Value = c(metrics1, metrics2, metrics3, metrics4),
-  Model = rep(
-    c("RF 1", "RF 2", "RF 3", "RF 4"),
-    each = 3
-  )
-)
-
-library(ggplot2)
-ggplot(performance_df, aes(x = Metric, y = Value, fill = Model)) +
-  geom_col(position = "dodge") +
-  ylim(0, 1) +
-  labs(title = "Random Forest Models: Accuracy, Sensitivity, Specificity",
-       y = "Score", x = "Metric") +
-  scale_fill_brewer(palette = "Set2") +
-  theme_minimal()
-```
-
 #### Logistic regression
 
 ##### With incertitudes
+
 ###### Without class weights
 
 Fitting the model on the dataset
@@ -2268,19 +2088,10 @@ We use test set to evaluate the best model:
 
 ```{r}
 class <- as.factor(KOI_table.wo_incertitudes.log$koi_disposition)
-features <- KOI_table.wo_incertitudes.log[,-13]
+features <- KOI_table.wo_incertitudes.log[,-c(12,13)]
 dim(features)
 
-features.exo <- KOI_table.wo_incertitudes.log[KOI_table.wo_incertitudes.log$koi_disposition==1,-13]
-features_exo <- scale(features.exo)
-dim(features.exo)
-```
-```{r}
-class <- as.factor(KOI_table.log_f$koi_disposition)
-features <- KOI_table.log_f[,-which(names(KOI_table_log_f) == "koi_disposition")]
-dim(features)
-
-features.exo <- KOI_table.log_f[KOI_table.log_f$koi_disposition==1,-which(names(KOI_table.log_f) == "koi_disposition")]
+features.exo <- KOI_table.wo_incertitudes.log[KOI_table.wo_incertitudes.log$koi_disposition==1,-c(12,13)]
 dim(features.exo)
 ```
 
@@ -2571,8 +2382,20 @@ plot(
 rect.hclust(D.exo.ew, k = 4)
 ```
 ```{r}
+plot(
+  D.exo.ew,
+  main = 'euclidean-ward',
+  hang = -0.1,
+  xlab = '',
+  labels = F,
+  cex = 0.6,
+  sub = ''
+)
+rect.hclust(D.exo.ew, k = 4)
+```
+```{r}
 # Cut tree into k clusters
-cluster_labels <- cutree(D.exo.ew, k = 2)
+cluster_labels <- cutree(D.exo.ew, k = 4)
 cluster_labels
 ```
 
@@ -2602,54 +2425,6 @@ ggplot(df, aes(x = "", y = Count, fill = factor(Cluster))) +
   labs(title = "Cluster Distribution", fill = "Cluster") +
   theme_void()
 ```
-```{r}
-# Build the data frame
-plot_df <- features.exo
-plot_df$Cluster <- as.factor(cluster_labels)  # make sure it's a factor
-
-# Create the plot
-ggplot(plot_df, aes(x = koi_teq, y = koi_prad, color = Cluster)) +
-  geom_point(alpha = 0.7, size = 2) +
-  labs(
-    title = "Clusters of Exoplanets by Radius and Temperature",
-    x = "Equilibrium Temperature (koi_teq)",
-    y = "Planet Radius (koi_prad)",
-    color = "Cluster"
-  ) +
-  theme_minimal()
-
-# Create the plot
-ggplot(plot_df, aes(x = ESI, y = koi_prad, color = Cluster)) +
-  geom_point(alpha = 0.7, size = 2) +
-  labs(
-    title = "Clusters of Exoplanets by Radius and ESI",
-    x = "ESI",
-    y = "Planet Radius (koi_prad)",
-    color = "Cluster"
-  ) +
-  theme_minimal()
-
-# Create the plot
-ggplot(plot_df, aes(x = ESI, y = koi_teq, color = Cluster)) +
-  geom_point(alpha = 0.7, size = 2) +
-  labs(
-    title = "Clusters of Exoplanets by Radius and ESI",
-    x = "ESI",
-    y = "Planet Radius (koi_prad)",
-    color = "Cluster"
-  ) +
-  theme_minimal()
-
-ggplot(plot_df, aes(x = koi_period, y = koi_teq, color = Cluster)) +
-  geom_point(alpha = 0.7, size = 2) +
-  labs(
-    title = "Clusters of Exoplanets by Radius and ESI",
-    x = "Insolation Flux",
-    y = "Planet Radius (koi_prad)",
-    color = "Cluster"
-  ) +
-  theme_minimal()
-```
 
 
 ```{r}
@@ -2674,41 +2449,6 @@ axis(1,
      labels = 1:ncol(features.exo),
      las = 2)
 
-# PC variance
-barplot(
-  pca$sdev^2,
-  las = 2,
-  main = 'Principal components',
-  ylim = c(0, 10),
-  ylab = 'Variances'
-)
-# Original variance
-barplot(
-  sapply(features.exo, sd)^2,
-  las = 2,
-  main = 'Original variables',
-  ylim = c(0, 5),
-  ylab = 'Variances'
-)
-
-library(tidyr)
-# Loadings
-loadings <- pca$rotation[, 1:4]  # get loadings for PC1 to PC4
-head(loadings)  # view top variables
-loadings_df <- as.data.frame(loadings)
-loadings_df$Variable <- rownames(loadings_df)
-
-loadings_long <- loadings_df %>%
-  pivot_longer(cols = starts_with("PC"), names_to = "PC", values_to = "Loading")
-
-# Plot
-ggplot(loadings_long, aes(x = reorder(Variable, abs(Loading)), y = Loading, fill = PC)) +
-  geom_bar(stat = "identity") +
-  facet_wrap(~ PC, scales = "free_y") +
-  coord_flip() +
-  labs(title = "Loadings for First 4 Principal Components",
-       x = "Variables", y = "Loading") +
-  theme_minimal()
 
 # Create data frame with first 2 PCs and cluster labels
 pca_df <- data.frame(PC1 = pca$x[, 1],
@@ -2721,18 +2461,14 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = Cluster)) +
   labs(title = "Clusters Visualized in PCA Space") +
   theme_minimal() +
   theme(legend.position = "right")
-```
-```{r}
-# 3D
-library(plotly)
 
+# 3D
 pca_3d_df <- data.frame(
   PC1 = pca$x[, 1],
   PC2 = pca$x[, 2],
   PC3 = pca$x[, 3],
   Cluster = as.factor(cluster_labels)
 )
-
 plot_ly(pca_3d_df, 
         x = ~PC1, y = ~PC2, z = ~PC3, 
         color = ~Cluster, 
@@ -2740,15 +2476,7 @@ plot_ly(pca_3d_df,
         type = "scatter3d", 
         mode = "markers",
         marker = list(size = 3)) %>%
-  layout(
-    scene = list(
-      xaxis = list(title = "PC1"),
-      yaxis = list(title = "PC2"),
-      zaxis = list(title = "PC3")
-    ),
-    title = list(text = "3D PCA Plot Colored by Cluster")
-  )
-
+  layout(title = "3D PCA Plot Colored by Cluster")
 ```
 
 
