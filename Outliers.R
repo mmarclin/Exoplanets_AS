@@ -541,3 +541,91 @@ KOI_pca <- data.frame(KOI_pca_scores[,1:13], koi_disposition = KOI_table.log_f$k
 # View the PCA-transformed dataset
 head(KOI_pca)
 
+
+### Habitabily prediction using HWC dataset : 
+
+hwc = read.csv("C:/Users/antoi/OneDrive/Bureau/AppliedStats/PROJECT EXOPLANETS/hwc.csv")
+head(hwc)
+# Define the features to keep
+selected_features <- c(
+  # Planet
+  "P_RADIUS", "P_PERIOD", "P_TEMP_EQUIL", "P_FLUX",
+  
+  # Star
+  "S_TEMPERATURE", "S_RADIUS", "S_LOG_G", "S_MAG",
+  
+  # Target
+  "P_HABITABLE"
+)
+
+# Keep only those columns in the dataset
+hwc <- hwc[, selected_features]
+hwc$P_HABITABLE = ifelse(hwc$P_HABITABLE ==0 , 0 ,1 )
+hwc$P_HABITABLE = as.factor(hwc$P_HABITABLE)
+levels(hwc$P_HABITABLE )
+table(hwc$P_HABITABLE)
+# change the names : 
+colnames(hwc) <- c(
+  "koi_prad", "koi_period", "koi_teq", "koi_insol",
+  "koi_steff", "koi_srad", "koi_slogg", "koi_kepmag",
+  "koi_disposition"
+)
+hwc = na.omit(hwc)
+nrow(hwc)
+hwc = hwc[-4161,]
+# check the scale :
+
+ncol(hwc)
+boxplot(scale(x = hwc[which(hwc$koi_disposition!=0),-9], center = T, scale = T), las = 2, col = 'gold')
+
+boxplot(scale(x = hwc[,-9], center = T, scale = T), las = 2, col = 'gold')
+
+boxplot(hwc[which(hwc$koi_disposition!=0),], las = 2, col = 'gold',scale=T,center = T)
+hwc$koi_period
+
+# List of features to plot
+features <- c("koi_prad", "koi_period", "koi_teq", "koi_insol", 
+              "koi_steff", "koi_srad", "koi_slogg", "koi_kepmag")
+KOI_table_exo = KOI_table[which(KOI_table$koi_disposition==1),]
+hwc_exo = hwc[which(hwc$koi_disposition==1),]
+
+# Loop through each feature
+for (feature in features) {
+  # Set up the plotting window: 1 row, 2 columns
+  par(mfrow = c(1, 2))
+  
+  # Boxplot for HWC
+  boxplot(hwc_exo[[feature]],
+          main = paste("HWC -", feature),
+          ylab = feature,
+          col = "lightblue",
+          outline = TRUE)
+  
+  # Boxplot for KOI
+  boxplot(KOI_table_exo[[feature]],
+          main = paste("KOI -", feature),
+          ylab = feature,
+          col = "lightgreen",
+          outline = TRUE)
+  cat(mean(KOI_table_exo[[feature]]))
+  cat("--")
+  cat(mean(hwc_exo[[feature]]))
+  
+  # Pause between plots so the user can see each one
+  readline(prompt = "Press [Enter] to show next feature...")
+}
+
+
+# train an model on it : 
+# severe class imbalance 
+install.packages("caret")
+library(DMwR)           # For SMOTE
+library(randomForest)   # For Random Forest
+library(xgboost)        # For XGBoost
+library(caret)          # For data splitting and evaluation
+library(dplyr)
+# SVM : 
+
+# XGBoost :
+
+
