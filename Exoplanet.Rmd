@@ -1072,7 +1072,7 @@ run_lda_analysis <- function(train_set, test_set, title = "LDA Projection") {
   print(p)
 }
 
-run_lda_analysis(train_set.log_f, test_set.log_f, "LDA Projection - log_f (no outliers)")
+lda_log_f1 <- run_lda_analysis(train_set.log_f, test_set.log_f, "LDA Projection - log_f (no outliers)")
 
 
 ```
@@ -1549,12 +1549,12 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 
-library(kernlab)
-
-svm <- ksvm(koi_disposition ~ ., 
-            data = train_set, 
-            kernel = "rbfdot", 
-            prob.model = TRUE)
+# library(kernlab)
+# 
+# svm <- ksvm(koi_disposition ~ ., 
+#             data = train_set, 
+#             kernel = "rbfdot", 
+#             prob.model = TRUE)
 
 svm_pred <- predict(svm, newdata = test_set)
 svm_pred_wo <- predict(svm.wo, newdata = test_set.wo)
@@ -1603,27 +1603,27 @@ ggplot(performance_df, aes(x = Metric, y = Value, fill = Model)) +
   theme_minimal()
 
 # ROC curve and AUC 
-library(pROC)
-roc1 <- roc(test_set$koi_disposition, svm_prob, levels = c("0", "1"), direction = "<")
-plot(roc1)
-auc(roc1)
-roc2 <- roc(test_set.wo$koi_disposition, svm_prob_wo, levels = rev(levels(test_set.wo$koi_disposition)))
-roc3 <- roc(test_set.log_f$koi_disposition, svm_prob_log_f, levels = rev(levels(test_set.log_f$koi_disposition)))
-roc4 <- roc(test_set.wo.log$koi_disposition, svm_prob_wo_log, levels = rev(levels(test_set.wo.log$koi_disposition)))
-
-# Plot ROC curves
-plot(roc1, col = "blue", main = "ROC Curves - SVM Models")
-lines(roc2, col = "red")
-lines(roc3, col = "green")
-lines(roc4, col = "purple")
-legend("bottomright", legend = c("All features", "Without uncertainties", "With log_f", "Without uncertainties + log_f"),
-       col = c("blue", "red", "green", "purple"), lwd = 2)
+# library(pROC)
+# roc1 <- roc(test_set$koi_disposition, svm_prob, levels = c("0", "1"), direction = "<")
+# plot(roc1)
+# auc(roc1)
+# roc2 <- roc(test_set.wo$koi_disposition, svm_prob_wo, levels = rev(levels(test_set.wo$koi_disposition)))
+# roc3 <- roc(test_set.log_f$koi_disposition, svm_prob_log_f, levels = rev(levels(test_set.log_f$koi_disposition)))
+# roc4 <- roc(test_set.wo.log$koi_disposition, svm_prob_wo_log, levels = rev(levels(test_set.wo.log$koi_disposition)))
+# 
+# # Plot ROC curves
+# plot(roc1, col = "blue", main = "ROC Curves - SVM Models")
+# lines(roc2, col = "red")
+# lines(roc3, col = "green")
+# lines(roc4, col = "purple")
+# legend("bottomright", legend = c("All features", "Without uncertainties", "With log_f", "Without uncertainties + log_f"),
+#        col = c("blue", "red", "green", "purple"), lwd = 2)
 
 # Print AUC values
-cat("AUC All features:", auc(roc1), "\n")
-cat("AUC Without uncertainties:", auc(roc2), "\n")
-cat("AUC With log_f:", auc(roc3), "\n")
-cat("AUC Without uncertainties + log_f:", auc(roc4), "\n")
+# cat("AUC All features:", auc(roc1), "\n")
+# cat("AUC Without uncertainties:", auc(roc2), "\n")
+# cat("AUC With log_f:", auc(roc3), "\n")
+# cat("AUC Without uncertainties + log_f:", auc(roc4), "\n")
 ```
 
 
@@ -1888,7 +1888,7 @@ accuracy <- mean(rf_preds == val_set$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds, val_set$koi_disposition))
 ```
-accuracy: 98.75%
+accuracy: 94.21%
 importance: incertitudes, koi_prad
 
 ##### without incertitudes
@@ -1928,7 +1928,7 @@ accuracy <- mean(rf_preds_wo == val_set.wo$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds_wo, val_set.wo$koi_disposition))
 ```
-accuracy: 90.84%
+accuracy: 89,62%
 
 #### without outliers
 ##### with incertudes
@@ -1968,6 +1968,7 @@ accuracy <- mean(rf_preds_log_f == val_set.log_f$koi_disposition) * 100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds_log_f, val_set.log_f$koi_disposition))
 ```
+accuracy: 98.62%
 
 ##### without incertitudes
 ```{r}
@@ -1999,28 +2000,22 @@ ggplot(var_imp_wo_log %>% arrange(importance), aes(x = reorder(variable, importa
 ```
 koi_prad is the most important feature, followed by koi_model_snr and koi_impact
 ```{r}
-rf_preds_wo_log <- predict(rf_model_wo_log, newdata = val_set.log_f)
+rf_preds_wo_log <- predict(rf_model_wo_log, newdata = val_set.wo.log)
 rf_preds_wo_log <- factor(rf_preds_wo_log, levels = levels(val_set.wo.log$koi_disposition))
 accuracy <- mean(rf_preds_wo_log == val_set.wo.log$koi_disposition) * 100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds_wo_log, val_set.wo.log$koi_disposition))
 ```
-accuracy: 90.56%
+accuracy: 89,91%
 
 ##### Results random forest
 ```{r}
-rf_preds <- factor(rf_preds, levels = levels(val_set$target))
-rf_preds_wo <- factor(rf_preds_wo, levels = levels(val_set.wo$target))
-rf_preds_log_f <- factor(rf_preds_log_f, levels = levels(val_set.log_f$target))
-rf_preds_wo_log <- factor(rf_preds_wo_log, levels = levels(val_set.wo.log$target))
-
-rf_preds <- factor(rf_preds, levels = levels(val_set$target))
-
 # Crea le confusion matrix
-cm1 <- confusionMatrix(rf_preds, val_set$target)
-cm2 <- confusionMatrix(rf_preds_wo, val_set.wo$target)
-cm3 <- confusionMatrix(rf_preds_log_f, val_set.log_f$target)
-cm4 <- confusionMatrix(rf_preds_wo_log, val_set.wo.log$target)
+cm1 <- confusionMatrix(rf_preds, val_set$koi_disposition)
+cm2 <- confusionMatrix(rf_preds_wo, val_set.wo$koi_disposition)
+cm3 <- confusionMatrix(rf_preds_log_f, val_set.log_f$koi_disposition)
+cm4 <- confusionMatrix(rf_preds_wo_log, val_set.wo.log$koi_disposition)
+
 get_metrics <- function(cm) {
   acc <- cm$overall["Accuracy"]
   sens <- cm$byClass["Sensitivity"]
@@ -2033,12 +2028,11 @@ metrics2 <- get_metrics(cm2)
 metrics3 <- get_metrics(cm3)
 metrics4 <- get_metrics(cm4)
 
-# Crea il data frame per il plot
 performance_df <- data.frame(
   Metric = rep(c("Accuracy", "Sensitivity", "Specificity"), 4),
   Value = c(metrics1, metrics2, metrics3, metrics4),
   Model = rep(
-    c("RF 1", "RF 2", "RF 3", "RF 4"),
+    c("All features", "Without uncertainties", "With log_f", "Without uncertainties + log_f"),
     each = 3
   )
 )
@@ -2055,8 +2049,8 @@ ggplot(performance_df, aes(x = Metric, y = Value, fill = Model)) +
 
 #### Logistic regression
 
+##### With outliers
 ##### With incertitudes
-###### Without class weights
 
 Fitting the model on the dataset
 ```{r}
@@ -2115,7 +2109,6 @@ mean(val_pred == actual)
 ```
 
 ##### Without incertitudes
-
 ###### Without class weights
 
 Fitting the model on the dataset
@@ -2137,7 +2130,6 @@ mean(val_pred.wo == actual.wo)
 ```
 
 ###### With class weights
-
 ```{r}
 prop.table(table(train_set.wo$koi_disposition))
 class_weights <- ifelse(train_set.wo$koi_disposition == 0,
@@ -2210,6 +2202,24 @@ table(Predicted = val_pred_weighted.log_f, Actual = val_set.log_f$koi_dispositio
 actual.log_f <- ifelse(val_set.log_f$koi_disposition == 0, 0, 1)
 mean(val_pred_weighted.log_f == actual.log_f)
 ```
+```{r}
+glm.fit.wo_log <- glm(koi_disposition~., data = train_set.wo.log, family=binomial)
+summary(glm.fit.wo_log)
+```
+
+Prediction on the testing set
+```{r}
+# Prediction on validation set
+val_probs.wo_log <- predict(glm.fit.wo_log, newdata = val_set.wo.log, type = "response")
+# Class prediction
+val_pred.wo_log <- ifelse(val_probs.wo_log > 0.5, 1, 0)
+# Confusion matrix
+table(Predicted = val_pred.wo_log, Actual = val_set.wo.log$koi_disposition)
+# Accuracy
+actual.wo_log <- ifelse(val_set.wo.log$koi_disposition == 0, 0, 1)
+mean(val_pred.wo_log == actual.wo_log)
+```
+
 
 ##### Results logistic regression
 
@@ -2222,6 +2232,37 @@ mean(val_pred.wo == actual.wo)
 
 table(Predicted = val_pred.log_f, Actual = val_set.log_f$koi_disposition)
 mean(val_pred.log_f == actual.log_f)
+
+table(Predicted = val_pred.wo_log, Actual = val_set.wo.log$koi_disposition)
+mean(val_pred.wo_log == actual.wo_log)
+
+acc1 <- mean(val_pred == val_set$koi_disposition)
+acc2 <- mean(val_pred.wo == val_set.wo$koi_disposition)
+acc3 <- mean(val_pred.log_f == val_set.log_f$koi_disposition)
+acc4 <- mean(val_pred.wo_log == val_set.wo.log$koi_disposition)
+
+accuracy_df <- data.frame(
+  Model = c(
+    "All features",
+    "Without uncertainties",
+    "With log_f",
+    "Without uncertainties + log_f"
+  ),
+  Accuracy = c(acc1, acc2, acc3, acc4)
+)
+
+library(ggplot2)
+
+ggplot(accuracy_df, aes(x = Model, y = Accuracy, fill = Model)) +
+  geom_col(width = 0.6) +
+  ylim(0, 1) +
+  labs(title = "Accuracy Comparison of Models",
+       x = "Model",
+       y = "Accuracy") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set2") +
+  geom_text(aes(label = round(Accuracy, 3)), vjust = -0.5)
+
 ```
 
 #### Comparison between models
