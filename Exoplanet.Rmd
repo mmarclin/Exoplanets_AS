@@ -626,7 +626,8 @@ we that this feature ( period error 1 and 2 ) still have a lot of outliers after
 log transform and capping, we can simply remove them 
 since they are not very discriminative : data_log_f
 ```{r}
-data_log_f = data_log[,-c(colnames(data_log)==c("koi_period_err2","koi_period_err1"))]
+colnames(data_log_f)
+data_log_f = data_log[,-c(2,3)]
 ```
 
 Comparison of boxplot fro 1 feature : 
@@ -819,7 +820,7 @@ train_index.wo <- createDataPartition(KOI_table.wo_incertitudes$koi_disposition,
 train_set.wo <- KOI_table.wo_incertitudes[train_index.wo, ]
 temp_set.wo  <- KOI_table.wo_incertitudes[-train_index.wo, ]
 
-val_index.wo <- createDataPartition(temp_set.wo$koi_disposition, p = 0.5, list = FALSE)
+val_index.wo <- createDataPartition(temp_set$koi_disposition, p = 0.5, list = FALSE)
 val_set.wo <- temp_set.wo[val_index.wo, ]
 test_set.wo <- temp_set.wo[-val_index.wo, ]
 
@@ -1238,7 +1239,6 @@ library(class) # KNN
 ```
 
 ```{r}
-library(caret)
 knn.all <- train(
   koi_disposition ~ ., 
   data = train_set,
@@ -1471,9 +1471,6 @@ We got:
 ```{r}
 varImp(svm.log_f)
 ```
-incertitudes are prevalent for prediction
-then we have prad, impact, teq, steff
-
 
 ###### without incertitudes
 
@@ -1497,16 +1494,12 @@ plot(svm.wo.log)  # plots accuracy vs cost (C) values
 svm_preds.wo.log <- predict(svm.wo.log, newdata = val_set.wo.log)
 confusionMatrix(svm_preds.wo.log, val_set.wo.log$koi_disposition)
 ```
-We got:
-- accuracy: 87%
-- recall: 93%
-- specificity: 90%
 
 
 ```{r}
 varImp(svm.wo.log)
 ```
-importance: prad, impact, teq, insol, steff
+
 
 ###### On log_f after pca 
 
@@ -1530,18 +1523,14 @@ plot(svm.pca)  # plots accuracy vs cost (C) values
 svm_preds.pca <- predict(svm.pca, newdata = val_set.pca)
 confusionMatrix(svm_preds.pca, val_set.pca$koi_disposition)
 ```
-We got:
-- accuracy: 92%
-- recall: 93%
-- specificity: 89%
 
 
 ```{r}
 varImp(svm.pca)
 ```
-importance: comp2,comp4, comp1, comp6
 
 ##### Results SVM
+<<<<<<< HEAD
 ```{r}
 library(caret)
 library(pROC)
@@ -1625,6 +1614,8 @@ ggplot(performance_df, aes(x = Metric, y = Value, fill = Model)) +
 # cat("AUC With log_f:", auc(roc3), "\n")
 # cat("AUC Without uncertainties + log_f:", auc(roc4), "\n")
 ```
+=======
+>>>>>>> b5c76e2ff09f0b03f109a9c33353d310d8ada758
 
 
 #### XGBoost 
@@ -1727,7 +1718,6 @@ cat("Test Accuracy:", round(accuracy * 100, 2), "%\n")
 
 #### Decision Tree
 
-#### with outliers
 ##### With incertitudes
 ```{r}
 library(rpart)
@@ -1758,8 +1748,7 @@ rpart.plot(tree_model_wo)
 error: 14.2%, accuracy: 85,98%
 important variables: koi_prad, koi_model_snr
 
-#### without outliers
-##### With incertitudes
+##### With data_log_f
 ```{r}
 tree_model_log_f <- rpart(koi_disposition ~ ., data = train_set.log_f, method = "class")
 summary(tree_model_log_f)
@@ -1772,12 +1761,12 @@ rpart.plot(tree_model_log_f)
 error: 8,59%, accuracy: 91,40%
 important variables: koi_staff_err1, koi_prad
 
-##### Without incertitudes
+##### Without incertitudes_data_log
 ```{r}
-tree_model_wo_log <- rpart(koi_disposition ~ ., data = train_set.wo.log, method = "class")
+tree_model_wo_log <- rpart(koi_disposition ~ ., data = train_set.wo_log, method = "class")
 summary(tree_model_wo_log)
-tree_pred_wo_log <- predict(tree_model_wo_log, newdata = val_set.wo.log, type = "class")
-table(Predicted = tree_pred_wo_log, Actual = val_set.wo.log$koi_disposition)
+tree_pred_wo_log <- predict(tree_model_wo_log, newdata = val_set.wo_log, type = "class")
+table(Predicted = tree_pred_wo_log, Actual = val_set.wo_log$koi_disposition)
 ```
 ```{r}
 rpart.plot(tree_model_wo_log)
@@ -1785,31 +1774,20 @@ rpart.plot(tree_model_wo_log)
 error: 14,00%, accuracy: 85,98%
 important variables: koi_prad, koi_model_snr
 
-##### Results decision trees
+##### Accuracy and comparison of the decision trees
 ```{r}
 # Accuracy 
 acc_tree <- mean(tree_pred == val_set$koi_disposition)
 acc_tree_wo <- mean(tree_pred_wo == val_set.wo$koi_disposition)
 acc_tree_log_f <- mean(tree_pred_log_f == val_set.log_f$koi_disposition)
-acc_tree_wo_log <- mean(tree_pred_wo_log == val_set.wo.log$koi_disposition)
+acc_tree_wo_log <- mean(tree_pred_wo_log == val_set.wo_log$koi_disposition)
  
 # comparison table
 accuracy_table <- data.frame(
-  model = c("All features", "Without uncertainties", "With log_f", "Without uncertainties + log_f"),
+  model = c("with incertitudes", "without incertitudes", "with data_log_f", "with incertitudes__log"),
   accuracy = c(acc_tree, acc_tree_wo, acc_tree_log_f, acc_tree_wo_log)
 )
 print(accuracy_table)
-
-library(ggplot2)
-ggplot(accuracy_table, aes(x = model, y = accuracy, fill = model)) +
-  geom_col(width = 0.6) +
-  ylim(0, 1) +
-  labs(title = "Decision Tree Accuracy Comparison",
-       x = "Model",
-       y = "Accuracy") +
-  scale_fill_brewer(palette = "Set2") +
-  theme_minimal() +
-  theme(legend.position = "none")
 ```
 
 ```{r}
@@ -1819,7 +1797,7 @@ library(caret)
 cm1 <- confusionMatrix(tree_pred,        reference = val_set$koi_disposition)
 cm2 <- confusionMatrix(tree_pred_wo,     reference = val_set.wo$koi_disposition)
 cm3 <- confusionMatrix(tree_pred_log_f,  reference = val_set.log_f$koi_disposition)
-cm4 <- confusionMatrix(tree_pred_wo_log, reference = val_set.wo.log$koi_disposition)
+cm4 <- confusionMatrix(tree_pred_wo_log, reference = val_set.wo_log$koi_disposition)
 
 # Estrai balanced accuracy, precision, recall, F1
 get_metrics <- function(cm) {
@@ -1838,7 +1816,7 @@ metrics3 <- get_metrics(cm3)
 metrics4 <- get_metrics(cm4)
 
 comparison_table <- data.frame(
-  Model = c("All features", "Without uncertainties", "With log_f", "Without uncertainties + log_f"),
+  Model = c("with incertitudes", "without incertitudes", "with data_log_f", "with incertitudes_log"),
   Accuracy = c(metrics1["Accuracy.Accuracy"], metrics2["Accuracy.Accuracy"], metrics3["Accuracy.Accuracy"], metrics4["Accuracy.Accuracy"]),
   Balanced_Accuracy = c(metrics1["Balanced_Accuracy.Balanced Accuracy"], metrics2["Balanced_Accuracy.Balanced Accuracy"], metrics3["Balanced_Accuracy.Balanced Accuracy"], metrics4["Balanced_Accuracy.Balanced Accuracy"]),
   Precision = c(metrics1["Precision.Precision"], metrics2["Precision.Precision"], metrics3["Precision.Precision"], metrics4["Precision.Precision"]),
@@ -1850,7 +1828,6 @@ print(comparison_table)
 
 #### Random forest
 
-#### with outliers
 ##### with incertitudes
 ```{r}
 library(doParallel)
@@ -1879,7 +1856,7 @@ ggplot(var_imp %>% arrange(importance), aes(x = reorder(variable, importance), y
     plot.title = element_text(size = 20)
   )
 ```
-koi_prad
+koi_fpflag_co (centroid offset flag) is the most important feature, followed by koi_fpflag_ss (stellar eclipse flag)
 ```{r}
 ## generate prediction and print the accuracy
 rf_preds <- predict(rf_model, newdata = val_set)
@@ -1888,8 +1865,12 @@ accuracy <- mean(rf_preds == val_set$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds, val_set$koi_disposition))
 ```
+<<<<<<< HEAD
 accuracy: 94.21%
 importance: incertitudes, koi_prad
+=======
+accuracy: 98.75%
+>>>>>>> b5c76e2ff09f0b03f109a9c33353d310d8ada758
 
 ##### without incertitudes
 ```{r}
@@ -1930,8 +1911,7 @@ print(confusionMatrix(rf_preds_wo, val_set.wo$koi_disposition))
 ```
 accuracy: 89,62%
 
-#### without outliers
-##### with incertudes
+##### without data_log_f
 ```{r}
 library(doParallel)
 cl <- makePSOCKcluster(detectCores() - 1)
@@ -1959,26 +1939,26 @@ ggplot(var_imp_log_f %>% arrange(importance), aes(x = reorder(variable, importan
     plot.title = element_text(size = 20)
   )
 ```
-importance: incertitudes, next koi_prad
+koi_fpflag_co (centroid offset flag) is still the most important feature, with a greater weight
 ```{r}
 ## generate prediction and print the accuracy
 rf_preds_log_f <- predict(rf_model_log_f, newdata = val_set.log_f)
-rf_preds_log_f <- factor(rf_preds_log_f, levels = levels(val_set.log_f$koi_disposition))
-accuracy <- mean(rf_preds_log_f == val_set.log_f$koi_disposition) * 100
+rf_preds_log_f <- factor(rf_model_log_f, levels = levels(val_set.log_f$koi_disposition))
+accuracy <- mean(rf_preds_log_f == val_set.log_f$koi_disposition)*100
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
 print(confusionMatrix(rf_preds_log_f, val_set.log_f$koi_disposition))
 ```
 accuracy: 98.62%
 
-##### without incertitudes
+##### without incertitudes_data_log
 ```{r}
 library(doParallel)
 cl <- makePSOCKcluster(detectCores() - 1)
 registerDoParallel(cl)
 library(caret)
 control_wo_log <- trainControl(method = "cv", number = 5)
-rf_model_wo_log <- train(koi_disposition ~ .,  data = train_set.wo.log, method = "rf", trControl = control_wo_log, metric = 'Accuracy',
-            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set.wo.log) - 1))), ntree = 100)
+rf_model_wo_log <- train(koi_disposition ~ .,  data = train_set.wo_log, method = "rf", trControl = control_log_f, metric = 'Accuracy',
+            tuneGrid = data.frame(mtry = floor(sqrt(ncol(train_set.wo_log) - 1))), ntree = 100)
 print(rf_model_wo_log$finalModel)
 stopCluster(cl)
 ```
@@ -1998,14 +1978,21 @@ ggplot(var_imp_wo_log %>% arrange(importance), aes(x = reorder(variable, importa
     plot.title = element_text(size = 20)
   )
 ```
-koi_prad is the most important feature, followed by koi_model_snr and koi_impact
+koi_prad is the most important feature, followed by koi_model_snr
 ```{r}
+<<<<<<< HEAD
 rf_preds_wo_log <- predict(rf_model_wo_log, newdata = val_set.wo.log)
 rf_preds_wo_log <- factor(rf_preds_wo_log, levels = levels(val_set.wo.log$koi_disposition))
 accuracy <- mean(rf_preds_wo_log == val_set.wo.log$koi_disposition) * 100
+=======
+rf_preds_wo_log <- predict(rf_model_wo_log, newdata = val_set.wo_log)
+rf_preds_wo_log <- factor(rf_preds_wo_log, levels = levels(val_set.wo_log$koi_disposition))
+accuracy <- mean(rf_preds_wo_log == val_set.wo_log$koi_disposition) * 100
+>>>>>>> b5c76e2ff09f0b03f109a9c33353d310d8ada758
 cat('Accuracy on val_set: ', round(accuracy, 2), '%', sep = '')
-print(confusionMatrix(rf_preds_wo_log, val_set.wo.log$koi_disposition))
+print(confusionMatrix(rf_preds_wo_log, val_set.wo_log$koi_disposition))
 ```
+<<<<<<< HEAD
 accuracy: 89,91%
 
 ##### Results random forest
@@ -2047,10 +2034,18 @@ ggplot(performance_df, aes(x = Metric, y = Value, fill = Model)) +
   theme_minimal()
 ```
 
+=======
+accuracy: 90.56%
+>>>>>>> b5c76e2ff09f0b03f109a9c33353d310d8ada758
 #### Logistic regression
 
 ##### With outliers
 ##### With incertitudes
+<<<<<<< HEAD
+=======
+
+###### Without class weights
+>>>>>>> b5c76e2ff09f0b03f109a9c33353d310d8ada758
 
 Fitting the model on the dataset
 ```{r}
@@ -3212,3 +3207,204 @@ mean(sil_4d[, "sil_width"])
 ```{r}
 
 ```
+
+## HABITABILITY 
+```{r}
+### Habitability prediction using HWC dataset : 
+
+hwc = read.csv("hwc.csv")
+head(hwc)
+# Define the features to keep
+selected_features <- c(
+  # Planet
+  "P_RADIUS", "P_PERIOD", "P_TEMP_EQUIL", "P_FLUX",
+  
+  # Star
+  "S_TEMPERATURE", "S_RADIUS", "S_LOG_G",
+  
+  # Target
+  "P_HABITABLE"
+)
+
+# Keep only those columns in the dataset
+hwc <- hwc[, selected_features]
+hwc$P_HABITABLE = ifelse(hwc$P_HABITABLE ==0 , 0 ,1 )
+hwc$P_HABITABLE = as.factor(hwc$P_HABITABLE)
+levels(hwc$P_HABITABLE )
+table(hwc$P_HABITABLE)
+# change the names : 
+colnames(hwc) <- c(
+  "koi_prad", "koi_period", "koi_teq", "koi_insol",
+  "koi_steff", "koi_srad", "koi_slogg",
+  "koi_disposition"
+)
+hwc = na.omit(hwc)
+nrow(hwc)
+hwc = hwc[-4161,]
+# check the scale :
+
+ncol(hwc)
+boxplot(scale(x = hwc[which(hwc$koi_disposition!=0),-9], center = T, scale = T), las = 2, col = 'gold')
+
+boxplot(scale(x = hwc[,-9], center = T, scale = T), las = 2, col = 'gold')
+
+boxplot(hwc[which(hwc$koi_disposition!=0),], las = 2, col = 'gold',scale=T,center = T)
+hwc$koi_period
+
+# List of features to plot
+features <- c("koi_prad", "koi_period", "koi_teq", "koi_insol", 
+              "koi_steff", "koi_srad", "koi_slogg")
+KOI_table_exo = KOI_table[which(KOI_table$koi_disposition==1),]
+hwc_exo = hwc[which(hwc$koi_disposition==1),]
+
+# Loop through each feature
+for (feature in features) {
+  # Set up the plotting window: 1 row, 2 columns
+  par(mfrow = c(1, 2))
+  
+  # Boxplot for HWC
+  boxplot(hwc_exo[[feature]],
+          main = paste("HWC -", feature),
+          ylab = feature,
+          col = "lightblue",
+          outline = TRUE)
+  
+  # Boxplot for KOI
+  boxplot(KOI_table_exo[[feature]],
+          main = paste("KOI -", feature),
+          ylab = feature,
+          col = "lightgreen",
+          outline = TRUE)
+  cat(mean(KOI_table_exo[[feature]]))
+  cat("--")
+  cat(mean(hwc_exo[[feature]]))
+  
+  # Pause between plots so the user can see each one
+  readline(prompt = "Press [Enter] to show next feature...")
+}
+
+set.seed(123)
+
+# Assume hwc_data is your dataset and
+# target is 'P_HABITABLE' (0/1)
+hwc_data = hwc
+# Split data into train and test (e.g., 70-30 split)
+train_index <- createDataPartition(hwc_data$koi_disposition, p = 0.7, list = FALSE)
+train_data <- hwc_data[train_index, ]
+test_data <- hwc_data[-train_index, ]
+
+# Undersample majority class in training set
+minority_class <- train_data %>% filter(koi_disposition == 1)
+majority_class <- train_data %>% filter(koi_disposition == 0)
+
+set.seed(123)
+majority_down <- majority_class %>% sample_n(nrow(minority_class))
+
+train_balanced <- bind_rows(minority_class, majority_down)
+
+# Separate features and labels for XGBoost
+train_matrix <- train_balanced %>% select(-koi_disposition) %>% as.matrix()
+train_label <- train_balanced$koi_disposition
+
+test_matrix <- test_data %>% select(-koi_disposition) %>% as.matrix()
+test_label <- test_data$koi_disposition
+
+# 1) Random Forest
+
+rf_model <- randomForest(as.factor(koi_disposition) ~ ., data = train_balanced)
+rf_preds <- predict(rf_model, newdata = test_data)
+
+confusionMatrix(rf_preds, as.factor(test_label))
+
+# 2) XGBoost
+
+dtrain <- xgb.DMatrix(data = train_matrix, label = as.numeric(train_label)-1)
+dtest <- xgb.DMatrix(data = test_matrix, label = as.numeric(test_label)-1)
+
+params <- list(
+  objective = "binary:logistic",
+  eval_metric = "logloss",
+  max_depth = 6,
+  eta = 0.1
+)
+
+xgb_model <- xgb.train(params, dtrain, nrounds = 100)
+
+xgb_preds_prob <- predict(xgb_model, dtest)
+xgb_preds <- ifelse(xgb_preds_prob > 0.5, 1, 0)
+
+confusionMatrix(factor(xgb_preds), factor(test_label))
+
+# XGBoost performs well ... 
+# let's use it on the KOI dataset : 
+# Select features used in training
+features <- c("koi_prad", "koi_period", "koi_teq", "koi_insol", 
+              "koi_steff", "koi_srad", "koi_slogg")
+setdiff(features, colnames(KOI_table_exo))
+
+# Prepare KOI data
+#KOI_table_exo = KOI_table
+KOI_pred_matrix <- KOI_table_exo[, features] %>% as.matrix()
+
+# Create DMatrix for XGBoost
+KOI_dmatrix <- xgb.DMatrix(data = KOI_pred_matrix)
+colnames(KOI_dmatrix)
+colnames(dtrain)
+# Predict using trained model
+KOI_preds_prob <- predict(xgb_model, KOI_dmatrix)
+KOI_preds <- ifelse(KOI_preds_prob > 0.5, 1, 0)
+
+# Attach predictions to the KOI data
+KOI_table_exo$Predicted_Habitable <- KOI_preds
+
+# Optional: View predicted habitables
+table(KOI_table_exo$Predicted_Habitable)
+
+
+ggplot(KOI_table_exo, aes(x = koi_prad, y = koi_teq, color = factor(Predicted_Habitable))) +
+  geom_point(alpha = 0.7) +
+  labs(title = "Predicted Habitability on KOI Dataset", color = "Predicted\nHabitable") +
+  theme_minimal()
+
+
+ggplot(KOI_table_exo, aes(x = koi_teq, y = ESI, color = factor(Predicted_Habitable))) +
+  geom_point(alpha = 0.7) +
+  labs(title = "Predicted Habitability on KOI Dataset", color = "Predicted\nHabitable") +
+  theme_minimal()
+
+
+### Nice plots : 
+# Assuming you have a vector KOI_preds with values 0 (not habitable) or 1 (habitable)
+library(ggplot2)
+
+KOI_pred_df <- data.frame(Habitability = factor(KOI_preds, labels = c("Not Habitable", "Habitable")))
+
+ggplot(KOI_pred_df, aes(x = Habitability, fill = Habitability)) +
+  geom_bar() +
+  scale_fill_manual(values = c("lightcoral", "lightblue")) +
+  theme_minimal() +
+  labs(title = "Predicted Habitability (KOI Dataset)", x = "", y = "Count") +
+  theme(legend.position = "none")
+
+# Features to plot
+features <- c("koi_prad", "koi_period", "koi_teq", "koi_insol", 
+              "koi_steff", "koi_srad", "koi_slogg")
+
+# Add predicted labels to KOI table if not already done
+KOI_table_exo$habitability_pred <- factor(KOI_preds, labels = c("Not Habitable", "Habitable"))
+
+# Plot boxplots
+library(ggplot2)
+for (feature in features) {
+  p <- ggplot(KOI_table_exo, aes_string(x = "habitability_pred", y = feature, fill = "habitability_pred")) +
+    geom_boxplot(outlier.colour = "red", alpha = 0.7) +
+    scale_fill_manual(values = c("lightcoral", "lightblue")) +
+    theme_minimal() +
+    labs(title = paste("Boxplot of", feature, "by Habitability"), x = "", y = feature) +
+    theme(legend.position = "none")
+  
+  print(p)
+}
+
+```
+
