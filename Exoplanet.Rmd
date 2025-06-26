@@ -87,8 +87,7 @@ We have to remove the unnecessary, unrelevant columns which are :
   - ra: KIC Right Ascension
   - dec: KIC Declination
   - koi_kepmag: Kepler-band
-
-koi_model_snr: Transit Signal-to-Noise ?
+- koi_model_snr: Transit Signal-to-Noise 
 
 We also don't take into account first the upper and lower bound of some features
 We will include them in our analysis later
@@ -110,7 +109,7 @@ column_rm = c("kepid","kepoi_name","kepler_name","koi_pdisposition",
               "koi_teq_err1","koi_teq_err2","koi_tce_delivname",
               "koi_fpflag_nt", "koi_fpflag_ss", "koi_fpflag_co", "koi_fpflag_ec",
               "ra", "dec", "koi_kepmag", 
-              "koi_tce_plnt_num")
+              "koi_tce_plnt_num","koi_model_snr")
 
 column_incertitudes = c("koi_period_err1", "koi_period_err2", "koi_time0bk_err1", "koi_time0bk_err2", 
                         "koi_impact_err1", "koi_impact_err2", "koi_duration_err1", "koi_duration_err2", 
@@ -183,7 +182,7 @@ dim(KOI_table.wo_incertitudes)
 attach(KOI_table)
 ```
 
-##### Earth Similarity Index 
+#### Earth Similarity Index 
 
 The  ESI (Earth Similarity Index) measures how similar a planet is to Earth, ranging from 0 (not similar) to 1 (identical).
 
@@ -396,12 +395,12 @@ First 3 principal components :
 
 ```{r}
 # 3D Scatter Plot
-df_pca <- data.frame(pca$x[, 1:3], label = koi_disposition)
-plot3d(df_pca$PC1, df_pca$PC2, df_pca$PC3, 
-       col = rainbow(length(unique(df_pca$label)))[as.factor(df_pca$label)],
-       size = 5, 
-       xlab = "PC1", ylab = "PC2", zlab = "PC3", 
-       main = "3D PCA Visualization")
+#df_pca <- data.frame(pca$x[, 1:3], label = koi_disposition)
+#plot3d(df_pca$PC1, df_pca$PC2, df_pca$PC3, 
+#       col = rainbow(length(unique(df_pca$label)))[as.factor(df_pca$label)],
+#       size = 5, 
+#       xlab = "PC1", ylab = "PC2", zlab = "PC3", 
+#       main = "3D PCA Visualization")
 ```
 
 First 5 principal components :
@@ -1349,8 +1348,6 @@ confusionMatrix(knn_preds_wo.log, val_set.wo.log$koi_disposition)
 vip(knn.wo.log)
 ```
 
-=======
->>>>>>> d5f1963412a78a42b2c20c64f4756875dca868b4
 
 #### SVM
 
@@ -1632,7 +1629,7 @@ cat("AUC Without uncertainties + log_f:", auc(roc4), "\n")
 
 #### XGBoost 
 
-```{r}
+```{r warning=FALSE}
 library(xgboost)
 ```
 
@@ -2248,16 +2245,18 @@ We use test set to evaluate the best model:
 
 ```{r}
 class <- as.factor(KOI_table.wo_incertitudes.log$koi_disposition)
-features <- KOI_table.wo_incertitudes.log[,-c(13,14)]
+features <- KOI_table.wo_incertitudes.log[,-c(12,13)]
 dim(features)
 
-features.exo <- KOI_table.wo_incertitudes.log[KOI_table.wo_incertitudes.log$koi_disposition==1,-c(13,14)]
+features.exo <- KOI_table.wo_incertitudes.log[KOI_table.wo_incertitudes.log$koi_disposition==1,-c(12,13)]
 dim(features.exo)
 ```
 
 #### Hiearchical clustering
 
 ##### full dataset
+
+###### Can we separater false and true exoplanets ?
 
 ```{r}
 library(cluster)
@@ -2479,6 +2478,7 @@ plot_ly(
 
 There is 4 types of exoplanets : Gas giant, Neptunian, super-Earth, and terrestrial
 
+###### What are the different types of exoplanets ?
 
 Compute the dissimilarity matrix
 ```{r}
@@ -2649,6 +2649,99 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = cluster)) +
   theme_minimal()
 
 ```
+
+###### MANOVA
+
+Add Cluster Labels to Your Dataset
+Explore Characteristics of Each Cluster
+```{r}
+exo_clustered <- cbind(features.exo, Cluster = as.factor(cluster_labels))
+exo_clustered %>%
+  group_by(Cluster) %>%
+  summarise(across(where(is.numeric), list(mean = mean, sd = sd), .names = "{.col}_{.fn}"))
+```
+
+Visualize characteristics
+```{r}
+library(reshape2)
+library(ggplot2)
+
+# Melt the data for plotting
+exo_melt <- melt(exo_clustered, id.vars = "Cluster")
+
+# Boxplot
+ggplot(exo_melt, aes(x = Cluster, y = value, fill = Cluster)) +
+  geom_boxplot() +
+  facet_wrap(~variable, scales = "free", ncol = 3) +
+  theme_minimal() +
+  labs(title = "Feature Distributions by Cluster")
+
+```
+
+MANOVA
+```{r}
+# Choose numeric variables only
+numeric_vars <- select(exo_clustered, -Cluster)
+
+# MANOVA
+manova_fit <- manova(as.matrix(numeric_vars) ~ Cluster, data = exo_clustered)
+summary(manova_fit, test = "Wilks")
+
+summary.aov(manova_fit)
+```
+
+###### LDA on clusters
+
+```{r warning=FALSE}
+library(MASS)
+lda_fit <- lda(Cluster ~ ., data = exo_clustered)
+lda_fit
+```
+```{r}
+# Predict LDA scores (linear discriminant projections)
+lda_pred <- predict(lda_fit)
+
+# Create a data frame with LDA components
+lda_df <- data.frame(LD1 = lda_pred$x[, 1],
+                     LD2 = lda_pred$x[, 2],
+                     Cluster = exo_clustered$Cluster)
+
+# Plot
+library(ggplot2)
+
+ggplot(lda_df, aes(x = LD1, y = LD2, color = Cluster)) +
+  geom_point(alpha = 0.7, size = 2) +
+  theme_minimal() +
+  labs(title = "LDA Projection of Clusters", x = "LD1", y = "LD2")
+```
+###### Verify assumptions on MANOVA and LDA
+
+```{r}
+library(MVN)
+
+# For each cluster
+for (cl in unique(exo_clustered$Cluster)) {
+  cat("\nCluster:", cl, "\n")
+  cluster_data <- subset(exo_clustered, Cluster == cl)[, -ncol(exo_clustered)]  # exclude 'Cluster'
+  
+  print(mvn(cluster_data)$multivariate_normality)
+}
+
+```
+
+```{r}
+# List to store covariance matrices
+cov_matrices <- list()
+
+for (cl in unique(exo_clustered$Cluster)) {
+  cluster_data <- subset(exo_clustered, Cluster == cl)[, -ncol(exo_clustered)]  # remove 'Cluster'
+  cov_matrices[[as.character(cl)]] <- cov(cluster_data)
+}
+
+# Example: view covariance matrix of cluster 1
+cov_matrices[["1"]]
+```
+
 #### K-means
 
 ```{r}
@@ -2658,7 +2751,419 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = cluster)) +
 #### DBScan
 
 ```{r}
+library(dplyr)
+library(dbscan)
+library(rgl)
+library(factoextra)
+library(cluster)
+```
 
+```{r}
+################################################################
+# try differents eps and minPts to see how many cluster are created
+library(purrr)
+
+# Tester plusieurs eps et minPts : always 1 for train_set
+eps_values <- seq(1, 8, by = 0.5)
+minPts_values <- seq(5, 8, by = 1) # 3 to 8 for 3d, 8 to 12 for 9d
+
+results <- expand.grid(eps = eps_values, minPts = minPts_values)
+
+results$num_clusters <- pmap_int(results, function(eps, minPts) {
+  res <- dbscan(pca_data_4d, eps = eps, minPts = minPts)
+  length(unique(res$cluster[res$cluster != 0]))
+})
+
+print(results)
+```
+
+##### with incertitudes #######################
+
+```{r}
+# 1. Filter confirmed and false positive
+data_filtered <- KOI_table %>%
+  filter(koi_disposition == 1)  # 0 = FALSE POSITIVE, 1 = CONFIRMED
+
+# 2. Select numeric features and remove NA rows
+data_numeric <- data_filtered %>%
+  select_if(is.numeric) %>%
+  na.omit()
+
+# 3. Remove constant columns (zero standard deviation)
+data_no_constant <- data_numeric[, apply(data_numeric, 2, function(x) sd(x) != 0)]
+
+# 4. Scale data
+data_scaled <- scale(data_no_constant)
+
+# 5. PCA reduction (compute once)
+pca_res <- prcomp(data_scaled, center = TRUE, scale. = TRUE)
+summary(pca_res)
+
+#### PART 1: PCA with 3 components (for 3D visualization) ####
+
+pca_data_3d <- pca_res$x[, 1:3]
+
+# Determine eps for DBSCAN (adjust after plotting)
+kNNdistplot(pca_data_3d, k = 4)
+abline(h = 1, lty = 2)  # Example threshold; tune accordingly, h =eps
+
+# Run DBSCAN on 3D PCA data
+set.seed(123)
+dbscan_res_3d <- dbscan(pca_data_3d, eps = 1, minPts = 4)
+
+#nb of clusters without the noise
+length(unique(dbscan_res_3d$cluster[dbscan_res_3d$cluster != 0])) # 7 clusters
+
+# 3D visualization of clusters
+colors <- c("red", "blue", "green", "purple", "orange", "yellow", "pink", "brown",  "grey")  # red = noise
+point_colors <- colors[dbscan_res_3d$cluster + 1]
+plot3d(pca_data_3d, col = point_colors, size = 0.5, type = "s",
+       xlab = "PC1", ylab = "PC2", zlab = "PC3")
+title3d("DBSCAN Clustering on 3D PCA Data")
+
+# Filter out noise points (label 0)
+clustered_idx_3d <- which(dbscan_res_3d$cluster != 0)
+clustered_pts_3d <- pca_data_3d[clustered_idx_3d, ]
+clustered_labels_3d <- dbscan_res_3d$cluster[clustered_idx_3d]
+
+# Compute silhouette values
+sil_3d <- silhouette(clustered_labels_3d, dist(clustered_pts_3d))
+summary(sil_3d)
+
+# Mean silhouette score (overall clustering quality)
+mean(sil_3d[, "sil_width"])
+
+#### PART 2: PCA with 9 components (81%) (for more info, no 3D plot) ####
+
+pca_data_9d <- pca_res$x[, 1:9]
+
+# Determine eps for DBSCAN (adjust after plotting)
+kNNdistplot(pca_data_9d, k = 10)
+abline(h = 1, lty = 2)  # Example threshold; tune accordingly
+
+# Run DBSCAN on 9D PCA data
+set.seed(123)
+dbscan_res_9d <- dbscan(pca_data_9d, eps = 1, minPts = 10)
+
+#nb of clusters without the noise
+length(unique(dbscan_res_9d$cluster[dbscan_res_9d$cluster != 0])) # 3 clusters
+
+# Visualisation 3d
+
+pca_data_3d <- pca_res$x[, 1:3]
+pca_3d_df <- as.data.frame(pca_data_3d)
+pca_3d_df$cluster <- factor(dbscan_res_9d$cluster)  # 0 = bruit
+
+colors <- c("red", "blue", "green", "purple", "orange", "yellow", "pink", "brown", "grey")
+point_colors <- colors[as.numeric(pca_3d_df$cluster) + 1]
+
+plot3d(pca_3d_df[,1:3], col = point_colors, size = 0.6, type = "s",
+       xlab = "PC1", ylab = "PC2", zlab = "PC3")
+title3d("Clusters DBSCAN (9D) projetés en 3D PCA")
+
+# Filter out noise points (label 0)
+clustered_idx_9d <- which(dbscan_res_9d$cluster != 0)
+clustered_pts_9d <- pca_data_9d[clustered_idx_9d, ]
+clustered_labels_9d <- dbscan_res_9d$cluster[clustered_idx_9d]
+
+# Compute silhouette values
+sil_9d <- silhouette(clustered_labels_9d, dist(clustered_pts_9d))
+summary(sil_9d)
+
+# Mean silhouette score (overall clustering quality)
+mean(sil_9d[, "sil_width"])
+```
+
+##### without incertitudes #######################
+
+```{r}
+# 1. Filter confirmed and false positive
+data_filtered <- KOI_table.wo_incertitudes %>%
+  filter(koi_disposition == 1)  # 0 = FALSE POSITIVE, 1 = CONFIRMED
+
+# 2. Select numeric features and remove NA rows
+data_numeric <- data_filtered %>%
+  select_if(is.numeric) %>%
+  na.omit()
+
+# 3. Remove constant columns (zero standard deviation)
+data_no_constant <- data_numeric[, apply(data_numeric, 2, function(x) sd(x) != 0)]
+
+# 4. Scale data
+data_scaled <- scale(data_no_constant)
+
+# 5. PCA reduction (compute once)
+pca_res <- prcomp(data_scaled, center = TRUE, scale. = TRUE)
+summary(pca_res)
+
+#### PART 1: PCA with 3 components (for 3D visualization) ####
+
+pca_data_3d <- pca_res$x[, 1:3]
+
+# Determine eps for DBSCAN (adjust after plotting)
+kNNdistplot(pca_data_3d, k = 4)
+abline(h = 1, lty = 2)  # Example threshold; tune accordingly, h =eps
+
+# Run DBSCAN on 3D PCA data
+set.seed(123)
+dbscan_res_3d <- dbscan(pca_data_3d, eps = 1, minPts = 4)
+
+#nb of clusters without the noise
+length(unique(dbscan_res_3d$cluster[dbscan_res_3d$cluster != 0])) # 6 clusters
+
+# 3D visualization of clusters
+colors <- c("red", "blue", "green", "purple", "orange", "yellow", "pink", "brown",  "grey")  # red = noise
+point_colors <- colors[dbscan_res_3d$cluster + 1]
+plot3d(pca_data_3d, col = point_colors, size = 0.5, type = "s",
+       xlab = "PC1", ylab = "PC2", zlab = "PC3")
+title3d("DBSCAN Clustering on 3D PCA Data")
+
+# Filter out noise points (label 0)
+clustered_idx_3d <- which(dbscan_res_3d$cluster != 0)
+clustered_pts_3d <- pca_data_3d[clustered_idx_3d, ]
+clustered_labels_3d <- dbscan_res_3d$cluster[clustered_idx_3d]
+
+# Compute silhouette values
+sil_3d <- silhouette(clustered_labels_3d, dist(clustered_pts_3d))
+summary(sil_3d)
+
+# Mean silhouette score (overall clustering quality)
+mean(sil_3d[, "sil_width"])
+
+#### PART 2: PCA with 6 components (84%) (for more info, no 3D plot) ####
+
+pca_data_6d <- pca_res$x[, 1:6]
+
+# Determine eps for DBSCAN (adjust after plotting)
+kNNdistplot(pca_data_6d, k = 8)
+abline(h = 2, lty = 2)  # Example threshold; tune accordingly
+
+# Run DBSCAN on 9D PCA data
+set.seed(123)
+dbscan_res_6d <- dbscan(pca_data_6d, eps = 2, minPts = 8)
+
+#nb of clusters without the noise
+length(unique(dbscan_res_6d$cluster[dbscan_res_6d$cluster != 0])) # 3 clusters
+
+# Visualisation 3d
+
+pca_data_3d <- pca_res$x[, 1:3]
+pca_3d_df <- as.data.frame(pca_data_3d)
+pca_3d_df$cluster <- factor(dbscan_res_6d$cluster)  # 0 = bruit
+
+colors <- c("red", "blue", "green", "purple", "orange", "yellow", "pink", "brown", "grey")
+point_colors <- colors[as.numeric(pca_3d_df$cluster) + 1]
+
+plot3d(pca_3d_df[,1:3], col = point_colors, size = 0.6, type = "s",
+       xlab = "PC1", ylab = "PC2", zlab = "PC3")
+title3d("Clusters DBSCAN (9D) projetés en 3D PCA")
+
+# Filter out noise points (label 0)
+clustered_idx_6d <- which(dbscan_res_6d$cluster != 0)
+clustered_pts_6d <- pca_data_6d[clustered_idx_6d, ]
+clustered_labels_6d <- dbscan_res_6d$cluster[clustered_idx_6d]
+
+# Compute silhouette values
+sil_6d <- silhouette(clustered_labels_6d, dist(clustered_pts_6d))
+summary(sil_6d)
+
+# Mean silhouette score (overall clustering quality)
+mean(sil_6d[, "sil_width"])
+```
+
+##### without outliers #######################
+```{r}
+# 1. Filter confirmed and false positive
+data_filtered <- KOI_table.log_f %>%
+  filter(koi_disposition == 1)  # 0 = FALSE POSITIVE, 1 = CONFIRMED
+
+# 2. Select numeric features and remove NA rows
+data_numeric <- data_filtered %>%
+  select_if(is.numeric) %>%
+  na.omit()
+
+# 3. Remove constant columns (zero standard deviation)
+data_no_constant <- data_numeric[, apply(data_numeric, 2, function(x) sd(x) != 0)]
+
+# 4. Scale data
+data_scaled <- scale(data_no_constant)
+
+# 5. PCA reduction (compute once)
+pca_res <- prcomp(data_scaled, center = TRUE, scale. = TRUE)
+summary(pca_res)
+
+#### PART 1: PCA with 3 components (for 3D visualization) ####
+
+pca_data_3d <- pca_res$x[, 1:3]
+
+# Determine eps for DBSCAN (adjust after plotting)
+kNNdistplot(pca_data_3d, k = 4)
+abline(h = 1, lty = 2)  # Example threshold; tune accordingly, h =eps
+
+# Run DBSCAN on 3D PCA data
+set.seed(123)
+dbscan_res_3d <- dbscan(pca_data_3d, eps = 1, minPts = 4)
+
+#nb of clusters without the noise
+length(unique(dbscan_res_3d$cluster[dbscan_res_3d$cluster != 0])) # 10 clusters
+
+# 3D visualization of clusters
+colors <- c("red", "blue", "green", "purple", "orange", "yellow", "pink", "brown",  "grey")  # red = noise
+point_colors <- colors[dbscan_res_3d$cluster + 1]
+plot3d(pca_data_3d, col = point_colors, size = 0.5, type = "s",
+       xlab = "PC1", ylab = "PC2", zlab = "PC3")
+title3d("DBSCAN Clustering on 3D PCA Data")
+
+# Filter out noise points (label 0)
+clustered_idx_3d <- which(dbscan_res_3d$cluster != 0)
+clustered_pts_3d <- pca_data_3d[clustered_idx_3d, ]
+clustered_labels_3d <- dbscan_res_3d$cluster[clustered_idx_3d]
+
+# Compute silhouette values
+sil_3d <- silhouette(clustered_labels_3d, dist(clustered_pts_3d))
+summary(sil_3d)
+
+# Mean silhouette score (overall clustering quality)
+mean(sil_3d[, "sil_width"])
+
+
+#### PART 2: PCA with 7 components (83%) (for more info, no 3D plot) ####
+
+pca_data_7d <- pca_res$x[, 1:7]
+
+# Determine eps for DBSCAN (adjust after plotting)
+kNNdistplot(pca_data_7d, k = 8)
+abline(h = 1.5, lty = 2)  # Example threshold; tune accordingly
+
+# Run DBSCAN on 9D PCA data
+set.seed(123)
+dbscan_res_7d <- dbscan(pca_data_7d, eps = 1.5, minPts = 8)
+
+#nb of clusters without the noise
+length(unique(dbscan_res_7d$cluster[dbscan_res_7d$cluster != 0])) # 6 clusters
+
+# Visualisation 3d
+
+pca_data_3d <- pca_res$x[, 1:3]
+pca_3d_df <- as.data.frame(pca_data_3d)
+pca_3d_df$cluster <- factor(dbscan_res_7d$cluster)  # 0 = bruit
+
+colors <- c("red", "blue", "green", "purple", "orange", "yellow", "pink", "brown", "grey")
+point_colors <- colors[as.numeric(pca_3d_df$cluster) + 1]
+
+plot3d(pca_3d_df[,1:3], col = point_colors, size = 0.6, type = "s",
+       xlab = "PC1", ylab = "PC2", zlab = "PC3")
+title3d("Clusters DBSCAN (7D) projetés en 3D PCA")
+
+# Filter out noise points (label 0)
+clustered_idx_7d <- which(dbscan_res_7d$cluster != 0)
+clustered_pts_7d <- pca_data_7d[clustered_idx_7d, ]
+clustered_labels_7d <- dbscan_res_7d$cluster[clustered_idx_7d]
+
+# Compute silhouette values
+sil_7d <- silhouette(clustered_labels_7d, dist(clustered_pts_7d))
+summary(sil_7d)
+
+# Mean silhouette score (overall clustering quality)
+mean(sil_7d[, "sil_width"])
+```
+
+##### without incertitudes and outliers #######################
+```{r}
+
+# 1. Filter confirmed and false positive
+data_filtered <- KOI_table.wo_incertitudes.log %>%
+  filter(koi_disposition == 1)  # 0 = FALSE POSITIVE, 1 = CONFIRMED
+
+# 2. Select numeric features and remove NA rows
+data_numeric <- data_filtered %>%
+  select_if(is.numeric) %>%
+  na.omit()
+
+# 3. Remove constant columns (zero standard deviation)
+data_no_constant <- data_numeric[, apply(data_numeric, 2, function(x) sd(x) != 0)]
+
+# 4. Scale data
+data_scaled <- scale(data_no_constant)
+
+# 5. PCA reduction (compute once)
+pca_res <- prcomp(data_scaled, center = TRUE, scale. = TRUE)
+summary(pca_res)
+
+#### PART 1: PCA with 3 components (for 3D visualization) ####
+
+pca_data_3d <- pca_res$x[, 1:3]
+
+# Determine eps for DBSCAN (adjust after plotting)
+kNNdistplot(pca_data_3d, k = 5)
+abline(h = 1, lty = 2)  # Example threshold; tune accordingly, h =eps
+
+# Run DBSCAN on 3D PCA data
+set.seed(123)
+dbscan_res_3d <- dbscan(pca_data_3d, eps = 1, minPts = 5)
+
+#nb of clusters without the noise
+length(unique(dbscan_res_3d$cluster[dbscan_res_3d$cluster != 0])) # 5 clusters
+
+# 3D visualization of clusters
+colors <- c("red", "blue", "green", "purple", "orange", "yellow", "pink", "brown",  "grey")  # red = noise
+point_colors <- colors[dbscan_res_3d$cluster + 1]
+plot3d(pca_data_3d, col = point_colors, size = 0.5, type = "s",
+       xlab = "PC1", ylab = "PC2", zlab = "PC3")
+title3d("DBSCAN Clustering on 3D PCA Data")
+
+# Filter out noise points (label 0)
+clustered_idx_3d <- which(dbscan_res_3d$cluster != 0)
+clustered_pts_3d <- pca_data_3d[clustered_idx_3d, ]
+clustered_labels_3d <- dbscan_res_3d$cluster[clustered_idx_3d]
+
+# Compute silhouette values
+sil_3d <- silhouette(clustered_labels_3d, dist(clustered_pts_3d))
+summary(sil_3d)
+
+# Mean silhouette score (overall clustering quality)
+mean(sil_3d[, "sil_width"])
+
+
+#### PART 2: PCA with 4 components (85%) (for more info, no 3D plot) ####
+
+pca_data_4d <- pca_res$x[, 1:4]
+
+# Determine eps for DBSCAN (adjust after plotting)
+kNNdistplot(pca_data_4d, k = 5)
+abline(h = 1, lty = 2)  # Example threshold; tune accordingly
+
+# Run DBSCAN on 9D PCA data
+set.seed(123)
+dbscan_res_4d <- dbscan(pca_data_4d, eps = 1, minPts = 5)
+
+#nb of clusters without the noise
+length(unique(dbscan_res_4d$cluster[dbscan_res_4d$cluster != 0])) # 6 clusters
+
+# Visualisation 3d
+
+pca_data_3d <- pca_res$x[, 1:3]
+pca_3d_df <- as.data.frame(pca_data_3d)
+pca_3d_df$cluster <- factor(dbscan_res_4d$cluster)  # 0 = bruit
+
+colors <- c("red", "blue", "green", "purple", "orange", "yellow", "pink", "brown", "grey")
+point_colors <- colors[as.numeric(pca_3d_df$cluster) + 1]
+
+plot3d(pca_3d_df[,1:3], col = point_colors, size = 0.6, type = "s",
+       xlab = "PC1", ylab = "PC2", zlab = "PC3")
+title3d("Clusters DBSCAN (9D) projetés en 3D PCA")
+
+# Filter out noise points (label 0)
+clustered_idx_4d <- which(dbscan_res_4d$cluster != 0)
+clustered_pts_4d <- pca_data_4d[clustered_idx_4d, ]
+clustered_labels_4d <- dbscan_res_4d$cluster[clustered_idx_4d]
+
+# Compute silhouette values
+sil_4d <- silhouette(clustered_labels_4d, dist(clustered_pts_4d))
+summary(sil_4d)
+
+# Mean silhouette score (overall clustering quality)
+mean(sil_4d[, "sil_width"])
 ```
 
 ### Incertitudes influence
