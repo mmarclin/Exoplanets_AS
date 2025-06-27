@@ -696,6 +696,14 @@ KOI_table.selected <- KOI_table.log_f %>% dplyr::select(-all_of(column_sel_rm))
 
 names(KOI_table.selected)
 ```
+```{r}
+numeric_data <- KOI_table.selected[, sapply(KOI_table.selected, is.numeric)]
+cor_matrix <- cor(numeric_data, use = "pairwise.complete.obs")
+
+corrplot(cor_matrix, method = "color", type = "upper", 
+         tl.col = "black", tl.cex = 0.8, 
+          diag = T)
+```
 
 #### MANOVA/ANOVA on the new datasets 
 
@@ -2324,6 +2332,15 @@ features <- KOI_table.wo_incertitudes.log[,-c(12,13)]
 dim(features)
 
 features.exo <- KOI_table.wo_incertitudes.log[KOI_table.wo_incertitudes.log$koi_disposition==1,-c(12,13)]
+dim(features.exo)
+```
+
+```{r}
+class <- as.factor(KOI_table.log_f$koi_disposition)
+features <- KOI_table.log_f[,-which(names(KOI_table.log_f)=="koi_disposition")]
+dim(features)
+
+features.exo <- KOI_table.log_f[KOI_table.log_f$koi_disposition==1,-which(names(KOI_table.log_f)=="koi_disposition")]
 dim(features.exo)
 ```
 
