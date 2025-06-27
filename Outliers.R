@@ -576,9 +576,9 @@ hwc = hwc[-4161,]
 # check the scale :
 
 ncol(hwc)
-boxplot(scale(x = hwc[which(hwc$koi_disposition!=0),-9], center = T, scale = T), las = 2, col = 'gold')
+boxplot(scale(x = hwc[which(hwc$koi_disposition!=0),-8], center = T, scale = T), las = 2, col = 'gold')
 
-boxplot(scale(x = hwc[,-9], center = T, scale = T), las = 2, col = 'gold')
+boxplot(scale(x = hwc[,-8], center = T, scale = T), las = 2, col = 'gold')
 
 boxplot(hwc[which(hwc$koi_disposition!=0),], las = 2, col = 'gold',scale=T,center = T)
 hwc$koi_period
@@ -586,7 +586,7 @@ hwc$koi_period
 # List of features to plot
 features <- c("koi_prad", "koi_period", "koi_teq", "koi_insol", 
               "koi_steff", "koi_srad", "koi_slogg")
-KOI_table_exo = KOI_table[which(KOI_table$koi_disposition==1),]
+KOI_table_exo = KOI_table[which(KOI_table$koi_disposition=="Confirmed"),]
 hwc_exo = hwc[which(hwc$koi_disposition==1),]
 
 # Loop through each feature
@@ -668,6 +668,41 @@ xgb_preds <- ifelse(xgb_preds_prob > 0.5, 1, 0)
 confusionMatrix(factor(xgb_preds), factor(test_label))
 
 # XGBoost performs well ... 
+
+
+# feature importance  : 
+
+# Compute feature importance using xgboost's built-in function
+xgb_imp <- xgb.importance(model = xgb_model)
+
+# Plot it
+xgb.plot.importance(xgb_imp, top_n = 10, measure = "Gain", 
+                    rel_to_first = TRUE, xlab = "Relative Importance")
+
+# Assuming xgb_imp is your trained XGBoost model
+importance_matrix <- xgb.importance(model = xgb_imp, feature_names = colnames(X))
+
+# Extract the top 10 features based on Gain
+top_10_features <- importance_matrix[importance_matrix$Measure == "Gain", ]
+top_10_features <- head(top_10_features[order(top_10_features$Gain, decreasing = TRUE), ], 10)
+
+# Create a data frame for ggplot
+plot_data <- data.frame(
+  Feature = top_10_features$Feature,
+  Importance = top_10_features$Gain
+)
+
+# Create a color palette
+color_palette <- rainbow(length(plot_data$Feature))
+
+# Plot using ggplot2
+ggplot(plot_data, aes(x = reorder(Feature, Importance), y = Importance, fill = Feature)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = color_palette) +
+  labs(x = "Feature", y = "Relative Importance", title = "XGBoost Feature Importance") +
+  coord_flip() +
+  theme_minimal()
+
 # let's use it on the KOI dataset : 
 # Select features used in training
 features <- c("koi_prad", "koi_period", "koi_teq", "koi_insol", 
@@ -883,33 +918,32 @@ ggplot(KOI_table, aes(x = ra, y = dec, color = koi_disposition)) +
        color = "Disposition") +
   theme_minimal()
 
+
+
+#########################################################################
+#                   CLUSTERING
+#########################################################################
 ########## New dataset for clustering : 
 KOI_names <- toupper(KOI_table_full$kepler_name)
 
 ps = read.csv("C:/Users/antoi/OneDrive/Bureau/AppliedStats/PROJECT EXOPLANETS/PS_2025.06.26_09.55.40.csv",comment.char = "#",header = TRUE, stringsAsFactors = FALSE)
 kepnames = na.omit(KOI_table_full$kepler_name)
-head(ps)
 dim(ps)
-colnames(ps)
 ps$pl_name_upper <- toupper(ps$pl_name)
 
 ##### Step 2: Filter the confirmed dataset
 #exo_koi_overlap <- ps %>%
 #  filter(pl_name_upper %in% KOI_names)
 
-# Step 3: Optionally drop the helper column
+# Step 3: Optionally drop the helper column and KEEP only one unit per exoplanet
 exo_koi_overlap = ps
 exo_koi_overlap <- exo_koi_overlap %>% select(-pl_name_upper)
 exo_koi_overlap = exo_koi_overlap[which(exo_koi_overlap$default_flag==1),]
 # View the result
 nrow(exo_koi_overlap)
-head(exo_koi_overlap)
+
 dim(exo_koi_overlap)
-#### Only the KOI exoplanets kept  : 
-## what features to use : 
-# Required libraries
-library(tidyverse)
-library(GGally)
+
 
 # Select features
 selected_vars <- exo_koi_overlap %>%
@@ -918,83 +952,8 @@ selected_vars <- exo_koi_overlap %>%
 dim(selected_vars)
 # Pairplot
 ggpairs(selected_vars)
-
-# Hierarchical clustering : 
-
-# Kmeans : 
-# Load libraries
-library(factoextra)  # for visualization
-sum(is.na(selected_vars))
-ps_na = na.omit(selected_vars)
-dim(ps_na)
-# 1. Scale the variables (important for KMeans)
-scaled_vars <- scale(ps_na)
-
-# 2. Determine optimal number of clusters (optional but useful)
-fviz_nbclust(scaled_vars, kmeans, method = "wss") + 
-  labs(title = "Elbow Method for Optimal k")
-
-# 3. Run KMeans (e.g. with 3 clusters)
-set.seed(123)  # for reproducibility
-kmeans_result <- kmeans(scaled_vars, centers = 4, nstart = 25)
-
-# 4. Add cluster labels to your dataset
-ps_na$cluster <- as.factor(kmeans_result$cluster)
-
-# 5. Visualize clusters (using PCA for 2D)
-fviz_cluster(kmeans_result, data = scaled_vars, 
-             geom = "point", ellipse.type = "norm", 
-             main = "KMeans Clustering")
-
-ggplot(ps_na, aes(x = pl_rade, y = pl_bmasse, color = cluster)) +
-  geom_point(alpha = 0.7, size = 2) +
-  scale_color_brewer(palette = "Set2") +
-  labs(title = "KMeans Clusters by Radius and Mass",
-       x = "Planet Radius (Earth radii)",
-       y = "Planet Mass (Earth masses)",
-       color = "Cluster") +
-  theme_minimal()
-
-
-scale_x_log10() + scale_y_log10()
-centers <- as.data.frame(kmeans_result$centers)
-centers$pl_rade <- centers$pl_rade * attr(scaled_vars, "scaled:scale")[1] + attr(scaled_vars, "scaled:center")[1]
-centers$pl_bmasse <- centers$pl_bmasse * attr(scaled_vars, "scaled:scale")[2] + attr(scaled_vars, "scaled:center")[2]
-
-ggplot(ps_na, aes(x = pl_rade, y = pl_bmasse, color = cluster)) +
-  geom_point(alpha = 0.7) +
-  geom_point(data = centers, aes(x = pl_rade, y = pl_bmasse), color = "black", size = 4, shape = 8) +
-  labs(title = "KMeans Clustering (Mass vs Radius)")
-
-### DBSCAN : 
-# Load necessary libraries
-library(dbscan)
-ps_na = na.omit(selected_vars)
-
-
-# 1. Scale the data (DBSCAN is distance-based, so scaling is essential)
-scaled_data <- scale(ps_na)
-
-# 2. Determine appropriate eps using kNN distance plot
-kNNdistplot(scaled_data, k = 8)  # try k = minPts (usually 4–10)
-abline(h = 1.5, col = "red", lty = 2)  # adjust threshold based on the elbow
-
-# 3. Run DBSCAN
-db <- dbscan(scaled_data, eps = 0.7, minPts = 8)  # adjust eps based on plot
-
-# 4. Add cluster labels to original data
-ps_na$cluster <- as.factor(db$cluster)  # 0 means noise
-
-# 5. Visualize with PCA
-fviz_cluster(list(data = scaled_data, cluster = db$cluster),
-             geom = "point", ellipse = FALSE,
-             main = "DBSCAN Clustering")
-#### PCA : 
-
-
-
-
-
+#### PCA :
+# ps_pca_data = all the numeric features of ps_na
 ps_pca_data = exo_koi_overlap %>% select(where(is.numeric))
 dim(ps_pca_data)
 extended_features <- c(
@@ -1024,8 +983,7 @@ dim(ps_pca_data)
 
 library(plotly)
 library(factoextra)
-head(ps_na)
-# Assuming ps_na is already cleaned and numeric
+
 # 1. Scale the data
 scaled_vars <- scale(ps_pca_data)
 
@@ -1035,10 +993,6 @@ pca_result <- prcomp(scaled_vars, center = T, scale. = T)
 # 3. Get first 3 PCs
 pc_data <- as.data.frame(pca_result$x[, 1:3])
 colnames(pc_data) <- c("PC1", "PC2", "PC3")
-
-# (Optional) Add labels or other grouping variables if you have them
-# pc_data$cluster <- ps_na$cluster  # if you already have clusters
-
 # 4. 3D plot using plotly
 fig <- plot_ly(pc_data, x = ~PC1, y = ~PC2, z = ~PC3,
                type = 'scatter3d', mode = 'markers',
@@ -1053,7 +1007,7 @@ fig <- fig %>% layout(title = "PCA: First 3 Principal Components",
 
 fig
 
-
+### Define the clusters manually 
 ps_pca_data$planet_type <- with(ps_pca_data, 
                                 ifelse(pl_bmasse < 2 & pl_rade < 1.5, "Earth-like",
                                        ifelse(pl_bmasse >= 2 & pl_bmasse < 10 & pl_rade >= 1.5 & pl_rade < 2.5, "Super-Earth",
@@ -1063,28 +1017,26 @@ ps_pca_data$planet_type <- with(ps_pca_data,
 table(ps_pca_data$planet_type)
 
 
-library(ggplot2)
-
 ggplot(ps_pca_data, aes(x = pl_rade, y = pl_bmasse, color = planet_type)) +
   geom_point(alpha = 0.7) +
   scale_x_log10() + scale_y_log10() +
   labs(x = "Planet Radius (Earth Radius)", y = "Planet Mass (Earth Mass)", color = "Planet Type") +
   theme_minimal()
 
-library(dbscan)
-
+#### DBSCAN on the numeric data : 
 # Prepare the data matrix with only radius and mass
-data_dbscan <- ps_pca_data[, c("pl_rade", "pl_bmasse")]
+cluster_features =c("pl_rade", "pl_bmasse","sy_dist","pl_eqt"  )
+data_dbscan <- ps_pca_data[, cluster_features]
 
 # Optional: scale features (recommended for DBSCAN)
 data_scaled <- scale(data_dbscan)
 # 2. Determine appropriate eps using kNN distance plot
 kNNdistplot(data_scaled, k = 5)  # try k = minPts (usually 4–10)
-abline(h = 0.4, col = "red", lty = 2)  # adjust threshold based on the elbow
+abline(h = 1, col = "red", lty = 2)  # adjust threshold based on the elbow
 
 # Run DBSCAN (you need to tune eps and minPts parameters)
 set.seed(123)
-dbscan_result <- dbscan(data_scaled, eps = 0.5, minPts = 7)
+dbscan_result <- dbscan(data_scaled, eps = 2, minPts = 10)
 
 # Add cluster labels to your data frame
 ps_pca_data$dbscan_cluster <- as.factor(dbscan_result$cluster)
@@ -1092,19 +1044,171 @@ ps_pca_data$dbscan_cluster <- as.factor(dbscan_result$cluster)
 # View cluster counts
 table(ps_pca_data$dbscan_cluster)
 
+#### KMEANS : 
 
-### KMEANS : 
-# Select the two features
-data_kmeans <- ps_pca_data[, c("pl_rade", "pl_bmasse")]
+# Select the features : taille / masse / température / distance à l'étoile
+data_kmeans <- ps_pca_data[, c("pl_rade", "pl_bmasse","sy_dist","pl_eqt"  )]
+data_kmeans2 = data_kmeans
+# Remove rows with NA (if any)
+data_kmeans <- na.omit(data_kmeans)
+dim(data_kmeans)
+# Scale the data (recommended for KMeans)
+data_scaled <- scale(data_kmeans)
+fviz_nbclust(data_scaled, kmeans, method = "wss")
 
+# Set the number of clusters (e.g., 4)
+set.seed(69)
+kmeans_result <- kmeans(data_scaled, centers = 5, nstart = 25)
+
+# Add cluster labels to the original dataset (only the rows used in clustering)
+data_kmeans2$kmeans_cluster <- NA
+data_kmeans2$kmeans_cluster[!is.na(data_kmeans2$pl_rade) & !is.na(data_kmeans2$pl_bmasse)] <- as.factor(kmeans_result$cluster)
+
+# View cluster sizes
+table(data_kmeans2$kmeans_cluster)
+
+ps_clustered <- data_kmeans
+ps_clustered$kmeans_cluster <- as.factor(kmeans_result$cluster)
+
+ggplot(ps_clustered, aes(x = pl_rade, y = pl_bmasse, color = kmeans_cluster)) +
+  geom_point(alpha = 0.7) +
+  scale_x_log10() + scale_y_log10() +
+  scale_color_manual(values = c("1" = "blue", "2" = "red", "3" = "darkgreen", "4" = "pink", "5" = "purple")) +
+  labs(x = "Planet Radius (Earth Radius)", y = "Planet Mass (Earth Mass)", color = "Cluster") +
+  theme_minimal()
+
+# 3D scatter plot
+plot_ly(data = ps_clustered,
+        x = ~sy_dist,
+        y = ~pl_bmasse,
+        z = ~pl_eqt,
+        color = ~kmeans_cluster,
+        colors = c("blue", "red", "darkgreen", "pink"),
+        type = "scatter3d",
+        mode = "markers",
+        marker = list(size = 4, opacity = 0.8)) %>%
+  layout(title = "3D Scatter Plot of Exoplanet Clusters",
+         scene = list(
+           xaxis = list(title = "Distance from Star"),
+           yaxis = list(title = "Mass (Earth)"),
+           zaxis = list(title = "Equilibrium Temperature (K)")
+         ))
+
+
+
+plot_ly(data = ps_clustered,
+        x = ~sy_dist,
+        y = ~pl_rade,
+        z = ~pl_eqt,
+        color = ~kmeans_cluster,
+        colors = c("blue", "red", "darkgreen", "pink"),
+        type = "scatter3d",
+        mode = "markers",
+        marker = list(size = 4, opacity = 0.8)) %>%
+  layout(title = "3D Scatter Plot of Exoplanet Clusters",
+         scene = list(
+           xaxis = list(title = "Distance from Star"),
+           yaxis = list(title = "Radius (Earth)"),
+           zaxis = list(title = "Equilibrium Temperature (K)")
+         ))
+
+# Theoretical clusters : 
+assign_theoretical_type <- function(radius, mass, temp, distance) {
+  if (is.na(radius) || is.na(mass) || is.na(temp) || is.na(distance)) {
+    return(NA)
+  }
+  
+  # Terrestrial: small radius & low mass
+  if (radius >= 0.3 && radius <= 2.0 &&
+      mass >= 0.05 && mass <= 10) {
+    return("Terrestrial")
+  }
+  
+  # Sub-Neptune: moderate radius & mass
+  if (radius > 2.0 && radius <= 6.0 &&
+      mass > 1 && mass <= 30) {
+    return("Sub-Neptune")
+  }
+  
+  # Hot Jupiter: very large radius, high temp, close-in
+  if (radius > 6.0 && temp > 800 && distance < 1.0) {
+    return("Hot Jupiter")
+  }
+  
+  # Cold Giant: large radius, low temp, far from star
+  if (radius > 6.0 && mass > 50 && temp < 500 && distance >= 1.0) {
+    return("Cold Giant")
+  }
+  
+  # Ice Giant: moderate-large radius and low temp
+  if (radius >= 4 && radius <= 8 && mass >= 10 && mass <= 70 && temp < 400) {
+    return("Ice Giant")
+  }
+  
+  # If nothing matches, assign to closest by radius only
+  if (radius < 2.5) {
+    return("Terrestrial")
+  } else if (radius <= 6) {
+    return("Sub-Neptune")
+  } else if (temp > 800) {
+    return("Hot Jupiter")
+  } else {
+    return("Cold Giant")
+  }
+}
+
+ps_pca_data$theoretical_type <- mapply(
+  assign_theoretical_type,
+  radius = ps_pca_data$pl_rade,
+  mass = ps_pca_data$pl_bmasse,
+  temp = ps_pca_data$pl_eqt,
+  distance = ps_pca_data$sy_dist
+)
+
+# Check final distribution
+table(ps_pca_data$theoretical_type)
+type_colors <- c(
+  "Terrestrial" = "blue",
+  "Sub-Neptune" = "darkgreen",
+  "Hot Jupiter" = "red",
+  "Cold Giant" = "cyan",
+  "Ice Giant" = "orange"
+)
+
+
+plot_ly(
+  data = ps_pca_data,
+  x = ~sy_dist,
+  y = ~pl_rade,
+  z = ~pl_eqt,
+  color = ~theoretical_type,
+  colors = type_colors,
+  type = "scatter3d",
+  mode = "markers",
+  marker = list(size = 4.5, opacity = 0.8)
+) %>%
+  layout(
+    title = "3D Scatter Plot of Theoretical Exoplanet Types",
+    scene = list(
+      xaxis = list(title = "Distance from Star (AU)"),
+      yaxis = list(title = "Planet Radius (Earth radii)"),
+      zaxis = list(title = "Equilibrium Temperature (K)")
+    ),
+    legend = list(title = list(text = "Theoretical Type"))
+  )
+# 7 cluster: 
+
+# Select the features : taille / masse / température / distance à l'étoile
+data_kmeans <- ps_pca_data[, c("pl_rade", "pl_bmasse","sy_dist","pl_eqt"  )]
 # Remove rows with NA (if any)
 data_kmeans <- na.omit(data_kmeans)
 
 # Scale the data (recommended for KMeans)
 data_scaled <- scale(data_kmeans)
+fviz_nbclust(data_scaled, kmeans, method = "wss")
 
 # Set the number of clusters (e.g., 4)
-set.seed(123)
+set.seed(69)
 kmeans_result <- kmeans(data_scaled, centers = 4, nstart = 25)
 
 # Add cluster labels to the original dataset (only the rows used in clustering)
@@ -1113,23 +1217,69 @@ ps_pca_data$kmeans_cluster[!is.na(ps_pca_data$pl_rade) & !is.na(ps_pca_data$pl_b
 
 # View cluster sizes
 table(ps_pca_data$kmeans_cluster)
-
+ps_clustered <- data_kmeans
+ps_clustered$kmeans_cluster <- as.factor(kmeans_result$cluster)
 
 library(ggplot2)
+library(ggplot2)
+library(plotly)
 
-ps_pca_data$kmeans_cluster <- as.factor(ps_pca_data$kmeans_cluster)
 
-ggplot(ps_pca_data, aes(x = pl_rade, y = pl_bmasse, color = kmeans_cluster)) +
+# Define a vector of 4 distinct colors (colorblind-friendly and visually balanced)
+cluster_colors <- c(
+  "1" = "#ff7f0e",  # blue
+  "2" = "cyan",  # orange
+  "3" = "red",  # green
+  "4" = "grey" # red
+)
+
+# 2D ggplot with better colors
+ggplot(ps_clustered, aes(x = pl_rade, y = pl_bmasse, color = kmeans_cluster)) +
   geom_point(alpha = 0.7) +
-  scale_x_log10() + scale_y_log10() +
-  scale_color_manual(values = c("1" = "blue", "2" = "red", "3" = "darkgreen", "4" = "pink")) +
-  labs(x = "Planet Radius (Earth Radius)", y = "Planet Mass (Earth Mass)", color = "Cluster") +
+  scale_x_log10() +
+  scale_y_log10() +
+  scale_color_manual(values = cluster_colors) +
+  labs(
+    x = "Planet Radius (Earth Radius)", 
+    y = "Planet Mass (Earth Mass)", 
+    color = "Cluster"
+  ) +
   theme_minimal()
+
+plot_ly(
+  data = ps_clustered,
+  x = ~sy_dist,
+  y = ~pl_rade,
+  z = ~pl_eqt,
+  color = ~kmeans_cluster,
+  colors = unname(cluster_colors),
+  type = "scatter3d",
+  mode = "markers",
+  marker = list(size = 4, opacity = 0.8)
+) %>%
+  add_trace(
+    x = 1,           # Earth's distance from Sun (AU)
+    y = 1,           # Earth's radius (Earth radii)
+    z = 288,         # Earth's average equilibrium temperature (K)
+    type = "scatter3d",
+    mode = "markers",
+    marker = list(size = 10, color = "blue", symbol = "circle"),
+    name = "Earth"
+  ) %>%
+  layout(
+    title = "3D Scatter Plot: Distance vs Radius vs Temperature",
+    scene = list(
+      xaxis = list(title = "Distance from Star"),
+      yaxis = list(title = "Radius (Earth Radius)"),
+      zaxis = list(title = "Equilibrium Temperature (K)")
+    )
+  )
+apply(ps_clustered[ps_clustered$kmeans_cluster == 1, 1:4], 2, median)
 #### Hierarchical clustering : 
 
 
 # Assuming ps_pca_data is your data frame with numeric features pl_rade and pl_bmasse
-data_for_clust <- ps_pca_data[, c("pl_rade", "pl_bmasse")]
+data_for_clust <-  ps_pca_data[, c("pl_rade", "pl_bmasse","sy_dist","pl_eqt"  )]
 
 # Scale the data (important for clustering)
 scaled_data <- scale(data_for_clust)
@@ -1148,11 +1298,16 @@ for(linkage in linkages) {
   plot(hc, main = paste("Hierarchical Clustering -", linkage, "linkage"),
        xlab = "", sub = "", cex = 0.6)
 }
+hc <- hclust(dist_matrix, method = "ward.D2")
+plot(hc, main = paste("Hierarchical Clustering -", "ward.D2"),
+     xlab = "", sub = "", labels = FALSE)
+rect.hclust(hc, k = 4)
+
 
 
 library(ggplot2)
 
-data_for_clust <- ps_pca_data[, c("pl_rade", "pl_bmasse")]
+data_for_clust <-  ps_pca_data[, c("pl_rade", "pl_bmasse","sy_dist","pl_eqt"  )]
 scaled_data <- scale(data_for_clust)
 dist_matrix <- dist(scaled_data)
 
@@ -1180,91 +1335,70 @@ for(linkage in linkages) {
   print(p)
 }
 
-#############
-library(ggplot2)
-library(RColorBrewer)
+linkage = "ward.D2"
 
-# Select the variables for clustering
-selected_features <- c(
-  "pl_rade", "pl_bmasse", "pl_orbper", "pl_orbeccen", "pl_insol", "pl_eqt",
-  "st_teff", "st_rad", "st_mass", "st_logg", "st_met", "sy_dist"
-)
-
-# Extract and scale data
-clust_data <- ps_pca_data[, selected_features]
-scaled_data <- scale(clust_data)
-
-# Compute distance matrix
-dist_matrix <- dist(scaled_data)
-
-# Linkage methods to trys
-linkages <- c("complete", "average", "single", "ward.D2")
-
-# Loop over linkage methods and plot clusters
-for(linkage in linkages) {
-  hc <- hclust(dist_matrix, method = linkage)
-  clusters <- cutree(hc, k = 4)
-  
-  plot_data <- data.frame(
-    pl_rade = ps_pca_data$pl_rade,
-    pl_bmasse = ps_pca_data$pl_bmasse,
-    cluster = as.factor(clusters)
-  )
-  
-  p <- ggplot(plot_data, aes(x = pl_rade, y = pl_bmasse, color = cluster)) +
-    geom_point(alpha = 0.7) +
-    scale_x_log10() +
-    scale_y_log10() +
-    labs(
-      title = paste("Hierarchical Clustering with", linkage, "linkage"),
-      x = "Planet Radius (Earth Radius)",
-      y = "Planet Mass (Earth Mass)",
-      color = "Cluster"
-    ) +
-    theme_minimal() +
-    scale_color_brewer(palette = "Set1")
-  
-  print(p)
-}
-#### more features : 
-# Extended list of features (add as many numeric/continuous features as you want)
-extended_features <- c(
-  "pl_rade", "pl_bmasse", "pl_orbper", "pl_orbeccen", "pl_insol", "pl_eqt",
-  "st_teff", "st_rad", "st_mass", "st_logg", "st_met", "sy_dist",
-  "pl_orbsmax", "st_metratio", "sy_vmag", "pl_eqterr1"  # example extras
-)
-
-# Extract and scale
-clust_data <- ps_pca_data[, extended_features]
-clust_data <- na.omit(clust_data)  # remove rows with NA
-scaled_data <- scale(clust_data)
-
-# Distance matrix
-dist_matrix <- dist(scaled_data)
-
-# Linkage methods (you can pick one or try multiple as before)
-linkage <- "ward.D2"
 hc <- hclust(dist_matrix, method = linkage)
 clusters <- cutree(hc, k = 4)
+table(clusters)
+# Add cluster info to data frame
+plot_data <- data.frame(data_for_clust, cluster = as.factor(clusters))
 
-# Plotting clusters only on radius vs mass for visualization
-plot_data <- data.frame(
-  pl_rade = ps_pca_data$pl_rade[rownames(clust_data)],
-  pl_bmasse = ps_pca_data$pl_bmasse[rownames(clust_data)],
-  cluster = as.factor(clusters)
-)
-
-library(ggplot2)
-ggplot(plot_data, aes(x = pl_rade, y = pl_bmasse, color = cluster)) +
+# Plot clusters
+p <- ggplot(plot_data, aes(x = pl_rade, y = pl_bmasse, color = cluster)) +
   geom_point(alpha = 0.7) +
-  scale_x_log10() +
-  scale_y_log10() +
-  labs(
-    title = paste("Hierarchical Clustering with", linkage, "linkage (More features)"),
-    x = "Planet Radius (Earth Radius)",
-    y = "Planet Mass (Earth Mass)",
-    color = "Cluster"
-  ) +
+  scale_x_log10() + scale_y_log10() +
+  labs(title = paste("Hierarchical Clustering -", linkage, "linkage"),
+       x = "Planet Radius (Earth Radius)", y = "Planet Mass (Earth Mass)",
+       color = "Cluster") +
   theme_minimal() +
   scale_color_brewer(palette = "Set1")
 
+print(p)
+
+
+library(plotly)
+
+linkages <- c("complete", "average", "single", "ward.D2")
+
+for (linkage in linkages) {
+  hc <- hclust(dist_matrix, method = linkage)
+  clusters <- cutree(hc, k = 4)
+  
+  plot_data <- data.frame(data_for_clust, cluster = as.factor(clusters))
+  
+  p3d <- plot_ly(
+    data = plot_data,
+    x = ~sy_dist,
+    y = ~pl_rade,
+    z = ~pl_eqt,
+    color = ~cluster,
+    colors = RColorBrewer::brewer.pal(4, "Set1"),
+    type = "scatter3d",
+    mode = "markers",
+    marker = list(size = 4, opacity = 0.8)
+  ) %>%
+    layout(
+      title = paste("3D Scatter Plot - Hierarchical Clustering (", linkage, "linkage)", sep = ""),
+      scene = list(
+        xaxis = list(title = "Distance from Star"),
+        yaxis = list(title = "Radius (Earth Radius)"),
+        zaxis = list(title = "Equilibrium Temperature (K)")
+      )
+    )
+  
+  print(p3d)
+}
+
+###  Quick Manova on the clusters : 
+
+# Make sure your cluster variable is a factor
+ps_clustered$kmeans_cluster <- as.factor(ps_clustered$kmeans_cluster)
+
+# Select the variables for MANOVA
+manova_data <- ps_clustered[, c("pl_rade", "pl_bmasse", "sy_dist", "pl_eqt")]
+
+# Run MANOVA with cluster as the grouping factor
+manova_result <- manova(as.matrix(manova_data) ~ kmeans_cluster, data = ps_clustered)
+
+# Summary of MANOVA with Pillai's trace test
+summary(manova_result, test = "Pillai")
