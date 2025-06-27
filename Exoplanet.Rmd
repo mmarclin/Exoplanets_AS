@@ -2223,12 +2223,19 @@ mean(val_pred.log_f == actual.log_f)
 ###### With class weights
 
 ```{r}
-prop.table(table(train_set.log_f$koi_disposition))
-class_weights <- ifelse(train_set.wo$koi_disposition == 0,
-                        1 / prop.table(table(train_set.log_f$koi_disposition))[1],
-                        1 / prop.table(table(train_set.log_f$koi_disposition))[2])
+# Recalcul des poids sur le bon jeu de données
+props <- prop.table(table(train_set.log_f$koi_disposition))
 
-glm_weighted.fit.log_f <- glm(koi_disposition~., data = train_set.log_f, family=binomial)
+class_weights <- ifelse(train_set.log_f$koi_disposition == 0,
+                        1 / props["0"],
+                        1 / props["1"])
+
+# Régression logistique pondérée
+glm_weighted.fit.log_f <- glm(koi_disposition ~ ., 
+                              data = train_set.log_f, 
+                              family = binomial,
+                              weights = class_weights)
+
 summary(glm_weighted.fit.log_f)
 ```
 
